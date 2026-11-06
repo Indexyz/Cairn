@@ -4,3 +4,9 @@ __pycache__/
 .playwright-cli/
 datas/
 dispatch.yaml
+
+# web build output
+web/node_modules/
+web/dist/
+cairn/src/cairn/server/static/index.html
+cairn/src/cairn/server/static/assets/

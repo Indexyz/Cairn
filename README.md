@@ -134,6 +134,7 @@ Supported worker backends: **Claude Code**, **Codex**, and **Pi**.
  
 - macOS or Linux
 - Python ≥ 3.12
+- Node.js ≥ 20 (builds the web UI)
 - Docker (container execution only — not needed for local mode)
 
 
@@ -166,17 +167,31 @@ docker compose up --build
 This starts `cairn-server` on port `8000` and `cairn-dispatcher` once the server passes its health check. The dispatcher mounts `dispatch.yaml` from the project root and connects to Docker via the host socket. Data is persisted to `./datas/cairn/`.
  
 ### Manual
- 
+
 ```bash
+# Build the web UI (served by the server from cairn/src/cairn/server/static)
+npm --prefix web install
+npm --prefix web run build
+
 # Start the server
 uv run --project cairn cairn serve
- 
+
 # Run the dispatcher
 uv run --project cairn cairn dispatch --config dispatch.yaml
- 
+
 # Run startup health checks only
 uv run --project cairn cairn dispatch --config dispatch.yaml --startup-healthcheck-only
 ```
+
+For UI work, run `npm --prefix web run dev` instead of building; Vite proxies the API to `127.0.0.1:8000`.
+
+### Model list
+
+The worker/model list lives in the server database and is edited from the **Models** page in the UI. The dispatcher hot-reloads it before every scheduling iteration, so saving takes effect on the next tick without a restart.
+
+`workers` in `dispatch.yaml` is a **seed only**: it is written into an empty database once, on dispatcher startup. After that the database wins, and entries added or removed in the UI are what the dispatcher uses. `common_env` in `dispatch.yaml` is still merged into every model's env. Concurrency caps (`runtime.max_workers`, `max_running_projects`, `max_project_workers`) and `runtime.interval` still come from the config file and need a restart.
+
+API probe keys are stored as plain text in the database.
 
 ### Local mode (no Docker)
 
