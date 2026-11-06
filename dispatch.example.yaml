@@ -53,7 +53,9 @@ container:
 
 
 workers:
-  # Worker priority is ascending: lower numbers are preferred first.
+  # Seed only: written into an empty database on first dispatcher start.
+  # After that the model list is authoritative in the database and edited from the UI.
+  # Priority is ascending: lower numbers are preferred first.
   # max_running is per-worker concurrency. Slower backends such as Pi usually benefit from lower values.
   - name: "claudecode_deepseek-v4-pro"
     type: "claudecode"

@@ -51,6 +51,8 @@ local:
 #   all_proxy: "http://127.0.0.1:7897"
 
 # No API keys needed — the host CLIs are used as-is. Per-worker `env:` overrides common_env.
+# Seed only: written into an empty database on first dispatcher start; afterwards the model
+# list is authoritative in the database and edited from the Models page in the UI.
 workers:
   - name: "local-claude"
     type: "claudecode"

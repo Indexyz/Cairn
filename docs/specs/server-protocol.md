@@ -172,6 +172,21 @@ intent_timeout  # 单位秒，超过此时间无心跳则 worker 清空为 null
 reason_timeout  # 单位秒，超过此时间无心跳则 Project.reason 清空为 null
 ```
 
+### Model
+
+调度器可用的 worker 模型条目。数据库是唯一权威来源，`dispatch.yaml` 里的 `workers` 只在数据库为空时做一次性 seed；dispatcher 每轮调度前都会重新拉取，保存后下一轮生效。
+
+```
+name          # 唯一名称，也是调度器里的 worker 标识
+类型          # "claudecode" | "codex" | "pi" | "mock"
+task_types    # 可执行的任务类型数组，取值 "bootstrap" | "reason" | "explore"，不可为空、不可重复
+max_running   # 单 worker 并发上限，正整数
+priority      # 调度优先级，升序优先，非负整数
+env           # 环境变量对象，字符串键值；容器模式下必须包含该类型所需的模型/端点/密钥键
+```
+
+服务端按 `priority` 升序、`name` 升序返回。
+
 ---
 
 ## 接口列表
@@ -205,6 +220,53 @@ Body：
   "reason_timeout": 5
 }
 ```
+
+---
+
+### Models
+
+#### GET /models
+
+返回全部模型，按 `priority`、`name` 升序。
+
+#### POST /models
+
+新建模型。名称重复返回 `409`，字段不合法返回 `422`。
+
+Body：
+
+```json
+{
+  "name": "claudecode_deepseek-v4-pro",
+  "type": "claudecode",
+  "task_types": ["bootstrap", "reason", "explore"],
+  "max_running": 2,
+  "priority": 0,
+  "env": {
+    "ANTHROPIC_MODEL": "deepseek-v4-pro",
+    "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "password"
+  }
+}
+```
+
+#### PUT /models
+
+以整份快照替换模型集合：未出现的名称被删除，出现的名称被新增或更新，单事务提交。名称重复返回 `422`。
+
+Body：
+
+```json
+{ "models": [ { "name": "...", "type": "...", "task_types": [], "max_running": 1, "priority": 0, "env": {} } ] }
+```
+
+#### PUT /models/{name}
+
+更新单个模型，允许改名（`body.name` 与路径不同，冲突时返回 `409`）。模型不存在返回 `404`。
+
+#### DELETE /models/{name}
+
+删除模型。模型不存在返回 `404`。
 
 ---
 

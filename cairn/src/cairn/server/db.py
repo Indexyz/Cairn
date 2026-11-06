@@ -66,6 +66,17 @@ CREATE TABLE IF NOT EXISTS hints (
     PRIMARY KEY (id, project_id)
 );
 
+CREATE TABLE IF NOT EXISTS models (
+    name TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    task_types TEXT NOT NULL,
+    max_running INTEGER NOT NULL,
+    priority INTEGER NOT NULL,
+    env TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS counters (
     name TEXT PRIMARY KEY,
     value INTEGER NOT NULL DEFAULT 0

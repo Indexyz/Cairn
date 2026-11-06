@@ -213,7 +213,8 @@ class DispatchConfig(BaseModel):
     container: ContainerConfig | None = None
     local: LocalConfig | None = None
     common_env: dict[str, str] = Field(default_factory=dict)
-    workers: list[WorkerConfig]
+    # Fallback seed only: the authoritative model list lives in the database.
+    workers: list[WorkerConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -250,8 +251,6 @@ class DispatchConfig(BaseModel):
         names = [worker.name for worker in self.workers]
         if len(set(names)) != len(names):
             raise ValueError("worker names must be unique")
-        if not self.workers:
-            raise ValueError("workers must not be empty")
         if self.runtime.max_project_workers > self.runtime.max_workers:
             raise ValueError("max_project_workers cannot exceed max_workers")
         return self

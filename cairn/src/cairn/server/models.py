@@ -4,6 +4,25 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from cairn.dispatcher.config import WorkerConfig
+
+
+class WorkerModel(WorkerConfig):
+    """Worker model entry persisted in the database."""
+
+
+class ReplaceModelsRequest(BaseModel):
+    models: list[WorkerModel]
+
+    @field_validator("models")
+    @classmethod
+    def validate_unique_names(cls, value: list[WorkerModel]) -> list[WorkerModel]:
+        names = [model.name for model in value]
+        duplicates = sorted({name for name in names if names.count(name) > 1})
+        if duplicates:
+            raise ValueError(f"duplicate model names: {', '.join(duplicates)}")
+        return value
+
 
 class Settings(BaseModel):
     intent_timeout: int = Field(ge=5)

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import requests
 
-from cairn.dispatcher.config import DispatchConfig, LocalConfig, WorkerConfig
+from cairn.dispatcher.config import WORKER_ENV_KEYS, DispatchConfig, LocalConfig, WorkerConfig
 from cairn.dispatcher.models import ReasonCheckpoint, RunningTask
 from cairn.dispatcher.protocol.client import CairnClient
 from cairn.dispatcher.runtime.cancellation import TaskCancellation
@@ -79,9 +79,11 @@ class DispatcherLoop:
 
     def run(self, once: bool = False) -> None:
         try:
+            self._sync_workers(seed=True)
             self.run_startup_healthchecks()
             while True:
                 try:
+                    self._sync_workers()
                     if not self._settings_checked:
                         self._validate_server_settings()
                         self._settings_checked = True
@@ -111,9 +113,64 @@ class DispatcherLoop:
 
     def run_startup_healthchecks_only(self) -> None:
         try:
+            self._sync_workers(seed=True)
             self.run_startup_healthchecks(show_commands=True, force=True)
         finally:
             self.close()
+
+    def _worker_signature(self) -> tuple[object, ...]:
+        return tuple(
+            (
+                worker.name,
+                worker.type,
+                tuple(worker.task_types),
+                worker.max_running,
+                worker.priority,
+                tuple(sorted(worker.env.items())),
+            )
+            for worker in self.config.workers
+        )
+
+    def _sync_workers(self, *, seed: bool = False) -> None:
+        """Reload the authoritative worker model list from the server."""
+        previous = self._worker_signature()
+        try:
+            models = self.client.list_models()
+            if seed and not models and self.config.workers:
+                models = self.client.replace_models(self.config.workers)
+                LOG.info("seeded %d worker model(s) from %s", len(models), self.config_path)
+        except requests.RequestException as exc:
+            if not self.config.workers:
+                raise RuntimeError(f"failed to load worker models: {exc}") from exc
+            LOG.warning("failed to reload worker models, keeping previous set error=%s", exc)
+            return
+
+        if not models:
+            raise RuntimeError("no worker models configured: add models in the UI or in dispatch.yaml")
+
+        workers = [
+            worker.model_copy(update={"env": {**self.config.common_env, **worker.env}})
+            for worker in models
+        ]
+        if self.config.runtime.execution == "container":
+            for worker in workers:
+                required = WORKER_ENV_KEYS[worker.type]
+                missing = [key for key in required if not worker.env.get(key)]
+                if missing:
+                    LOG.warning("worker %s missing env keys: %s", worker.name, ", ".join(missing))
+
+        self.config.workers = workers
+        if self._worker_signature() == previous:
+            return
+        LOG.info("worker models reloaded count=%d names=%s", len(workers), [w.name for w in workers])
+        self.worker_unhealthy_until.clear()
+        self.worker_rejected_until.clear()
+        if self._startup_healthchecks_checked:
+            self._startup_healthchecks_checked = False
+            try:
+                self.run_startup_healthchecks()
+            except RuntimeError as exc:
+                LOG.error("worker model healthcheck failed error=%s", exc)
 
     def run_startup_healthchecks(self, *, show_commands: bool = False, force: bool = False) -> None:
         if self._startup_healthchecks_checked:

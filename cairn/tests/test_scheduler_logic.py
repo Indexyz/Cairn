@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from concurrent.futures import Future
+from pathlib import Path
+
+import pytest
+import requests
 
 from cairn.dispatcher.models import ReasonCheckpoint, RunningTask
 from cairn.dispatcher.runtime.cancellation import TaskCancellation
@@ -331,3 +335,99 @@ def test_startup_only_worker_healthcheck_runs_automatic_startup_check() -> None:
     loop.run_startup_healthchecks()
 
     assert calls == [False]
+
+
+class _ModelsClient:
+    def __init__(self, models: list | None = None, *, fail: bool = False):
+        self.models = models or []
+        self.fail = fail
+        self.replaced: list[list] = []
+
+    def list_models(self) -> list:
+        if self.fail:
+            raise requests.RequestException("boom")
+        return list(self.models)
+
+    def replace_models(self, models: list) -> list:
+        self.replaced.append(list(models))
+        self.models = list(models)
+        return list(models)
+
+
+def _model(name: str, priority: int = 0):
+    from cairn.dispatcher.config import WorkerConfig
+
+    return WorkerConfig(
+        name=name,
+        type="mock",
+        task_types=["reason"],
+        max_running=1,
+        priority=priority,
+    )
+
+
+def _sync_loop(client: _ModelsClient, workers: list) -> DispatcherLoop:
+    loop = _loop()
+    loop.config = make_config().model_copy(update={"workers": workers})
+    loop.config_path = Path("dispatch.yaml")
+    loop.client = client
+    loop._startup_healthchecks_checked = False
+    return loop
+
+
+def test_sync_workers_seeds_empty_database_from_yaml() -> None:
+    worker = _model("from-yaml")
+    client = _ModelsClient()
+    loop = _sync_loop(client, [worker])
+
+    loop._sync_workers(seed=True)
+
+    assert [model.name for model in client.replaced[0]] == ["from-yaml"]
+    assert [model.name for model in client.models] == ["from-yaml"]
+    assert [model.name for model in loop.config.workers] == ["from-yaml"]
+
+
+def test_sync_workers_hot_reloads_and_clears_health_flags() -> None:
+    client = _ModelsClient([_model("old")])
+    loop = _sync_loop(client, [])
+    loop.worker_unhealthy_until["old"] = 99.0
+    loop.worker_rejected_until[("proj_001", "reason", "old")] = 99.0
+
+    loop._sync_workers()
+    assert [model.name for model in loop.config.workers] == ["old"]
+
+    client.models = [_model("new")]
+    loop.worker_unhealthy_until["old"] = 99.0
+    loop._sync_workers()
+
+    assert [model.name for model in loop.config.workers] == ["new"]
+    assert loop.worker_unhealthy_until == {}
+    assert loop.worker_rejected_until == {}
+
+
+def test_sync_workers_merges_common_env() -> None:
+    client = _ModelsClient([_model("worker")])
+    loop = _sync_loop(client, [])
+    loop.config = loop.config.model_copy(update={"common_env": {"SHARED": "yes"}})
+
+    loop._sync_workers()
+
+    assert loop.config.workers[0].env == {"SHARED": "yes"}
+
+
+def test_sync_workers_keeps_previous_set_on_request_failure() -> None:
+    client = _ModelsClient([_model("stable")])
+    loop = _sync_loop(client, [])
+    loop._sync_workers()
+
+    client.fail = True
+    loop._sync_workers()
+
+    assert [model.name for model in loop.config.workers] == ["stable"]
+
+
+def test_sync_workers_requires_a_model_set() -> None:
+    loop = _sync_loop(_ModelsClient(), [])
+
+    with pytest.raises(RuntimeError):
+        loop._sync_workers()
