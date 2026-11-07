@@ -101,3 +101,48 @@ def test_model_validation_rejects_bad_payloads(client: TestClient) -> None:
         env={"MOCK_REASON": json.dumps({"delay": [0, 1], "outcomes": {"intent": 1.0}})},
     )
     assert client.post("/models", json=good_mock).status_code == 201
+
+
+def _mock_model(name: str, behavior: str) -> dict:
+    return _model(
+        name=name,
+        type="mock",
+        env={"MOCK_HEALTHCHECK": behavior},
+    )
+
+
+def test_model_test_reports_healthy(client: TestClient) -> None:
+    client.post("/models", json=_mock_model("ok", json.dumps({"delay": [0, 0], "outcomes": {"ok": 1.0, "fail": 0.0}})))
+
+    response = client.post("/models/ok/test")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["status"] == 200
+    assert payload["endpoint"] == "mock in-process healthcheck"
+    assert payload["duration_ms"] >= 0
+
+
+def test_model_test_reports_unhealthy(client: TestClient) -> None:
+    client.post("/models", json=_mock_model("bad", json.dumps({"delay": [0, 0], "outcomes": {"ok": 0.0, "fail": 1.0}})))
+
+    response = client.post("/models/bad/test")
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is False
+    assert response.json()["status"] == 503
+    assert response.json()["detail"] == "mock healthcheck fail"
+
+
+def test_model_test_returns_404_for_unknown_model(client: TestClient) -> None:
+    assert client.post("/models/nope/test").status_code == 404
+
+
+def test_model_test_reports_missing_env(client: TestClient) -> None:
+    client.post("/models", json=_model("empty-claude", env={}))
+
+    response = client.post("/models/empty-claude/test")
+
+    assert response.status_code == 422
+    assert "ANTHROPIC_BASE_URL" in response.json()["detail"]

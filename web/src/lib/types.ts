@@ -72,6 +72,14 @@ export interface ServerSettings {
   reason_timeout: number;
 }
 
+export interface ModelTestResult {
+  ok: boolean;
+  status: number | null;
+  detail: string;
+  endpoint: string;
+  duration_ms: number;
+}
+
 export type TimelineEventType =
   | "project_created"
   | "hint_added"

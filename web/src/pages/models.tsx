@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { FlaskConical, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import type { TaskType, WorkerModel, WorkerType } from "@/lib/types";
+import type { ModelTestResult, TaskType, WorkerModel, WorkerType } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -103,6 +103,31 @@ export function ModelsPage() {
   const [originalName, setOriginalName] = useState<string | null>(null);
   const [removal, setRemoval] = useState<WorkerModel | null>(null);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState<string | null>(null);
+  const [results, setResults] = useState<Record<string, ModelTestResult>>({});
+
+  async function testModel(model: WorkerModel) {
+    if (testing) return;
+    setTesting(model.name);
+    try {
+      const result = await api<ModelTestResult>("POST", `/models/${encodeURIComponent(model.name)}/test`);
+      setResults((current) => ({ ...current, [model.name]: result }));
+      if (result.ok) {
+        toast.show(`${model.name} answered in ${result.duration_ms}ms`);
+      } else {
+        toast.show(`${model.name} failed${result.status ? ` (${result.status})` : ""}`, "error");
+      }
+    } catch (error) {
+      setResults((current) => {
+        const next = { ...current };
+        delete next[model.name];
+        return next;
+      });
+      toast.show((error as Error).message, "error");
+    } finally {
+      setTesting(null);
+    }
+  }
 
   async function load() {
     try {
@@ -247,13 +272,14 @@ export function ModelsPage() {
                   <TableHead className="w-24 text-right">优先级</TableHead>
                   <TableHead className="w-24 text-right">并发</TableHead>
                   <TableHead className="w-24 text-right">env</TableHead>
-                  <TableHead className="w-28 text-right">操作</TableHead>
+                  <TableHead className="w-32">检测</TableHead>
+                  <TableHead className="w-32 text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-16 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-16 text-center text-muted-foreground">
                       还没有模型。新建一个后 dispatcher 会自动加载。
                     </TableCell>
                   </TableRow>
@@ -275,7 +301,38 @@ export function ModelsPage() {
                       {Object.keys(model.env).length}
                     </TableCell>
                     <TableCell>
+                      {results[model.name] ? (
+                        results[model.name].ok ? (
+                          <Badge variant="done" title={`${results[model.name].endpoint} · ${results[model.name].duration_ms}ms`}>
+                            可用 · {results[model.name].duration_ms}ms
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="destructive"
+                            title={`HTTP ${results[model.name].status ?? "-"} · ${results[model.name].detail || "no detail"}`}
+                          >
+                            失败 · {results[model.name].status ?? "-"}
+                          </Badge>
+                        )
+                      ) : (
+                        <span className="text-xs text-muted-foreground">未检测</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          title="检测连通性（从 server 主机发起）"
+                          disabled={testing !== null}
+                          onClick={() => void testModel(model)}
+                        >
+                          {testing === model.name ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <FlaskConical className="size-3.5" />
+                          )}
+                        </Button>
                         <Button variant="ghost" size="icon-sm" title="编辑" onClick={() => openEdit(model)}>
                           <Pencil className="size-3.5" />
                         </Button>
@@ -295,7 +352,7 @@ export function ModelsPage() {
               </TableBody>
             </Table>
             <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground">
-              <span>优先级升序执行</span>
+              <span>优先级升序执行 · 检测由 server 主机发起，与 dispatcher 无关</span>
               <span>共 {models.length} 条</span>
             </div>
           </div>

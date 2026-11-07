@@ -195,6 +195,8 @@ The worker/model list lives in the server database and is edited from the **Mode
 
 An empty model list is a normal state: the dispatcher logs a warning and idles without dispatching, then resumes as soon as a model is added. You can therefore start the dispatcher first and configure models from the Models page.
 
+Each row on the Models page has a test button that runs the dispatcher's own worker healthcheck against the saved model and reports status and latency. The probe is sent from the server host, so it does not prove anything about the dispatcher host or a local-mode CLI.
+
 API probe keys are stored as plain text in the database.
 
 ### Local mode (no Docker)

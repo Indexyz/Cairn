@@ -264,6 +264,22 @@ Body：
 
 更新单个模型，允许改名（`body.name` 与路径不同，冲突时返回 `409`）。模型不存在返回 `404`。
 
+#### POST /models/{name}/test
+
+用 dispatcher 自己的 worker 健康检查探测该模型，请求由 **server 主机** 发起（可能与 dispatcher 主机不同），默认超时 10 秒，可用 `timeout` 查询参数调整（上限 60）。模型不存在返回 `404`，环境变量缺失返回 `422`。
+
+响应：
+
+```json
+{
+  "ok": true,
+  "status": 200,
+  "detail": "",
+  "endpoint": "in-process API ping",
+  "duration_ms": 143
+}
+```
+
 #### DELETE /models/{name}
 
 删除模型。模型不存在返回 `404`。

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
+from cairn.dispatcher.workers.registry import get_driver
 from cairn.server.db import get_conn
-from cairn.server.models import ReplaceModelsRequest, WorkerModel
+from cairn.server.models import ModelTestResult, ReplaceModelsRequest, WorkerModel
 from cairn.server.services import utcnow
 
 router = APIRouter(tags=["models"])
@@ -123,10 +125,40 @@ def update_model(name: str, body: WorkerModel):
         return body
 
 
+def _require_model(conn: sqlite3.Connection, name: str) -> WorkerModel:
+    row = conn.execute("SELECT * FROM models WHERE name = ?", (name,)).fetchone()
+    if row is None:
+        raise HTTPException(404, f"model {name} not found")
+    return _row_to_model(row)
+
+
 @router.delete("/models/{name}", status_code=204)
 def delete_model(name: str):
     with get_conn() as conn:
-        existing = conn.execute("SELECT 1 FROM models WHERE name = ?", (name,)).fetchone()
-        if existing is None:
-            raise HTTPException(404, f"model {name} not found")
+        _require_model(conn, name)
         conn.execute("DELETE FROM models WHERE name = ?", (name,))
+
+
+@router.post("/models/{name}/test", response_model=ModelTestResult)
+def test_model(name: str, timeout: float = Query(default=10.0, gt=0, le=60)):
+    """Run the dispatcher's own worker healthcheck for this model, from the server host."""
+    with get_conn() as conn:
+        model = _require_model(conn, name)
+
+    driver = get_driver(model.type)
+    started = time.perf_counter()
+    try:
+        result = driver.check_health(model, timeout=timeout)
+    except KeyError as exc:
+        raise HTTPException(422, f"model {name} is missing env key {exc.args[0]}") from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    duration_ms = int((time.perf_counter() - started) * 1000)
+
+    return ModelTestResult(
+        ok=result.ok,
+        status=result.status,
+        detail=result.detail,
+        endpoint=driver.describe_health(model),
+        duration_ms=duration_ms,
+    )

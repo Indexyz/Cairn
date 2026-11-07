@@ -11,6 +11,14 @@ class WorkerModel(WorkerConfig):
     """Worker model entry persisted in the database."""
 
 
+class ModelTestResult(BaseModel):
+    ok: bool
+    status: int | None = None
+    detail: str = ""
+    endpoint: str
+    duration_ms: int
+
+
 class ReplaceModelsRequest(BaseModel):
     models: list[WorkerModel]
 
