@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import type { NodeSingular } from "cytoscape";
 import {
   ChevronLeft,
@@ -22,7 +23,7 @@ import { useCytoscape } from "@/hooks/use-cytoscape";
 import { usePrefs } from "@/hooks/use-prefs";
 import { useToast } from "@/hooks/use-toast";
 import { api, copyText, fetchText } from "@/lib/api";
-import { formatDurationMs, formatTime, formatTimelineDate, LAYOUT_MODES, type LayoutMode } from "@/lib/format";
+import { LAYOUT_MODES, useFormat, type LayoutMode } from "@/lib/format";
 import { buildTimeline, isBootstrapIntent, timelineEventBadge, timelineEventBadgeClass, timelineEventDotClass, timelineEventIsInteractive, timelineEventTriggersGraphFocus } from "@/lib/timeline";
 import type { Intent, ProjectDetail, ProjectStatus, Selection, TimelineEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -46,12 +47,6 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-const STATUS_LABEL: Record<ProjectStatus, string> = {
-  active: "运行中",
-  stopped: "已暂停",
-  completed: "已完成",
-};
-
 const STATUS_BADGE: Record<ProjectStatus, "running" | "paused" | "done"> = {
   active: "running",
   stopped: "paused",
@@ -59,9 +54,9 @@ const STATUS_BADGE: Record<ProjectStatus, "running" | "paused" | "done"> = {
 };
 
 const REPLAY_SPEEDS = [
-  { value: "700", label: "Fast" },
-  { value: "1100", label: "Normal" },
-  { value: "1600", label: "Slow" },
+  { value: "700", key: "project.replay.fast" },
+  { value: "1100", key: "project.replay.normal" },
+  { value: "1600", key: "project.replay.slow" },
 ];
 
 interface ReplayState {
@@ -109,6 +104,8 @@ export function ProjectPage() {
   const { projectId = "" } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const { t } = useTranslation();
+  const format = useFormat();
   const { actorName, prefs, save: savePrefs } = usePrefs();
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
@@ -308,7 +305,7 @@ export function ProjectPage() {
     try {
       await api("PUT", `/projects/${projectId}/status`, { status: next });
       await load(projectId);
-      toast.show(next === "stopped" ? "Project stopped" : "Project resumed");
+      toast.show(t(next === "stopped" ? "project.toast.stopped" : "project.toast.resumed"));
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -325,7 +322,7 @@ export function ProjectPage() {
       setIntentOpen(false);
       setIntentText("");
       await load(projectId);
-      toast.show(claim ? "Intent declared and claimed" : "Intent declared");
+      toast.show(t(claim ? "project.toast.intentClaimed" : "project.toast.intentDeclared"));
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -339,7 +336,7 @@ export function ProjectPage() {
         worker: actorName,
       });
       await load(projectId);
-      toast.show(claiming ? "Intent claimed" : "Heartbeat sent");
+      toast.show(t(claiming ? "project.toast.claimed" : "project.toast.heartbeat"));
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -352,7 +349,7 @@ export function ProjectPage() {
         worker: actorName,
       });
       await load(projectId);
-      toast.show("Intent released");
+      toast.show(t("project.toast.released"));
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -369,7 +366,7 @@ export function ProjectPage() {
       setConcludeText("");
       setSelectedNode(null);
       await load(projectId);
-      toast.show("Intent concluded");
+      toast.show(t("project.toast.concluded"));
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -385,7 +382,7 @@ export function ProjectPage() {
       setCompleteOpen(false);
       setCompleteText("");
       await load(projectId);
-      toast.show("Project completed");
+      toast.show(t("project.toast.completed"));
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -398,7 +395,7 @@ export function ProjectPage() {
       setHintText("");
       await load(projectId);
       setSideTab("hints");
-      toast.show("Hint added");
+      toast.show(t("project.toast.hintAdded"));
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -409,7 +406,7 @@ export function ProjectPage() {
       await api("PUT", `/projects/${projectId}/title`, { title: renameText });
       setRenameOpen(false);
       await load(projectId);
-      toast.show("Project renamed");
+      toast.show(t("project.toast.renamed"));
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -424,7 +421,7 @@ export function ProjectPage() {
       setReopenOpen(false);
       setReopenText("");
       await load(projectId);
-      toast.show("Project reopened");
+      toast.show(t("project.toast.reopened"));
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -433,7 +430,7 @@ export function ProjectPage() {
   async function deleteProject() {
     try {
       await api("DELETE", `/projects/${projectId}`);
-      toast.show(`Deleted ${projectId}`);
+      toast.show(t("project.toast.deleted", { id: projectId }));
       navigate("/");
     } catch (error) {
       toast.show((error as Error).message, "error");
@@ -601,7 +598,7 @@ export function ProjectPage() {
       const source = await api<ProjectDetail>("GET", `/projects/${projectId}`);
       const frames = buildReplayFrames(source);
       if (frames.length === 0) {
-        toast.show("No timeline to replay", "error");
+        toast.show(t("project.replay.empty"), "error");
         return;
       }
       stopReplayTimer();
@@ -702,7 +699,7 @@ export function ProjectPage() {
       sequencePercent,
       sequenceLabel: `${index + 1} / ${total} · ${sequencePercent}%`,
       timePercent,
-      timeLabel: `${formatDurationMs(elapsed)} / ${formatDurationMs(totalDuration)} · ${timePercent}%`,
+      timeLabel: `${format.duration(elapsed)} / ${format.duration(totalDuration)} · ${timePercent}%`,
     };
   }, [timeline, selectedNode, selectedTimelineEntryId]);
 
@@ -742,7 +739,7 @@ export function ProjectPage() {
     <div className="flex h-full flex-col overflow-hidden">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3">
         <Button variant="ghost" size="icon-sm" asChild>
-          <Link to="/">
+          <Link to="/" title={t("project.back")}>
             <ChevronLeft className="size-4" />
           </Link>
         </Button>
@@ -751,6 +748,7 @@ export function ProjectPage() {
         <Button
           variant="ghost"
           size="icon-sm"
+          title={t("project.dialogs.rename.title")}
           onClick={() => {
             setRenameText(project.project.title);
             setRenameOpen(true);
@@ -760,28 +758,42 @@ export function ProjectPage() {
           <Pencil className="size-3.5" />
         </Button>
         <Badge variant={STATUS_BADGE[project.project.status]}>
-          {STATUS_LABEL[project.project.status]}
+          {t(`common.status.${project.project.status}`)}
         </Badge>
         <span className="ml-2 text-xs text-muted-foreground">
-          {project.facts.length} facts · {project.intents.length} intents
+          {t("project.facts", { count: project.facts.length })} ·{" "}
+          {t("project.intents", { count: project.intents.length })}
         </span>
         <div className="flex-1" />
 
         {!replay.active && (
           <Button variant="outline" size="sm" onClick={startReplay}>
             <Play className="size-3.5" />
-            Replay
+            {t("project.replay.start")}
           </Button>
         )}
         {replay.active && (
           <div className="flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1 text-xs text-violet-700">
             <span className="font-medium">
-              Replay {Math.min(replay.frameIndex + 1, replay.frames.length)} / {replay.frames.length}
+              {t("project.replay.label", {
+                current: Math.min(replay.frameIndex + 1, replay.frames.length),
+                total: replay.frames.length,
+              })}
             </span>
-            <Button variant="ghost" size="icon-sm" onClick={toggleReplayPlayback}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title={t(replay.playing ? "project.replay.pause" : "project.replay.resume")}
+              onClick={toggleReplayPlayback}
+            >
               {replay.playing ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
             </Button>
-            <Button variant="ghost" size="icon-sm" onClick={restartReplay}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title={t("project.replay.restart")}
+              onClick={restartReplay}
+            >
               <RotateCcw className="size-3.5" />
             </Button>
             <Select
@@ -794,20 +806,20 @@ export function ProjectPage() {
               <SelectContent>
                 {REPLAY_SPEEDS.map((speed) => (
                   <SelectItem key={speed.value} value={speed.value}>
-                    {speed.label}
+                    {t(speed.key)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Button variant="ghost" size="sm" onClick={exitReplay}>
-              Exit
+              {t("project.replay.exit")}
             </Button>
           </div>
         )}
 
         <Button variant="outline" size="sm" onClick={openSnapshot}>
           <FileCode2 className="size-3.5" />
-          Snapshot
+          {t("project.snapshot")}
         </Button>
         {!replay.active && project.project.status !== "completed" && (
           <Button
@@ -816,19 +828,19 @@ export function ProjectPage() {
             onClick={() => void setStatus(project.project.status === "active" ? "stopped" : "active")}
           >
             {project.project.status === "active" ? <Square className="size-3.5" /> : <Play className="size-3.5" />}
-            {project.project.status === "active" ? "Stop" : "Resume"}
+            {t(project.project.status === "active" ? "project.stop" : "project.resume")}
           </Button>
         )}
         {!replay.active && project.project.status === "completed" && (
           <Button variant="outline" size="sm" onClick={() => setReopenOpen(true)}>
             <RotateCcw className="size-3.5" />
-            Reopen
+            {t("project.reopen")}
           </Button>
         )}
         {!replay.active && (
           <Button variant="outline" size="sm" className="text-destructive" onClick={() => setDeleteOpen(true)}>
             <Trash2 className="size-3.5" />
-            Delete
+            {t("common.delete")}
           </Button>
         )}
       </header>
@@ -853,7 +865,7 @@ export function ProjectPage() {
               <SelectContent>
                 {LAYOUT_MODES.map((mode) => (
                   <SelectItem key={mode} value={mode}>
-                    {mode}
+                    {t(`layouts.${mode}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -870,7 +882,7 @@ export function ProjectPage() {
                   </p>
                   <p className="truncate text-sm font-semibold">{project.project.reason.worker}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    Heartbeat {formatTime(project.project.reason.last_heartbeat_at)}
+                    {t("project.heartbeat", { time: format.time(project.project.reason.last_heartbeat_at) })}
                   </p>
                 </div>
               </div>
@@ -892,7 +904,7 @@ export function ProjectPage() {
                     }}
                   >
                     <Sparkles className="size-3.5" />
-                    Intent
+                    {t("project.actions.intent")}
                   </Button>
                   <Button
                     size="sm"
@@ -905,7 +917,7 @@ export function ProjectPage() {
                     }}
                   >
                     <CircleCheck className="size-3.5" />
-                    Complete
+                    {t("project.actions.complete")}
                   </Button>
                 </>
               )}
@@ -920,7 +932,7 @@ export function ProjectPage() {
                   }}
                 >
                   <Lightbulb className="size-3.5" />
-                  Hint
+                  {t("project.actions.hint")}
                 </Button>
               )}
             </div>
@@ -933,7 +945,9 @@ export function ProjectPage() {
                   disabled={!actionableIntent}
                   onClick={heartbeatSelected}
                 >
-                  {openIntent?.worker ? "Heartbeat" : "Claim"}
+                  {openIntent?.worker
+                    ? t("project.actions.heartbeat")
+                    : t("project.actions.claim")}
                 </Button>
                 <Button
                   size="sm"
@@ -942,7 +956,7 @@ export function ProjectPage() {
                   disabled={!releasableIntent}
                   onClick={releaseSelected}
                 >
-                  Release
+                  {t("project.actions.release")}
                 </Button>
                 <Button
                   size="sm"
@@ -955,7 +969,7 @@ export function ProjectPage() {
                     setConcludeText("");
                   }}
                 >
-                  Conclude
+                  {t("project.actions.conclude")}
                 </Button>
               </div>
             )}
@@ -985,7 +999,7 @@ export function ProjectPage() {
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {tab}
+                {t(`project.tabs.${tab}`)}
                 {tab === "hints" && <span className="ml-1 opacity-60">{project.hints.length}</span>}
               </button>
             ))}
@@ -996,8 +1010,8 @@ export function ProjectPage() {
               <div className="space-y-3">
                 {!selectedNode && (
                   <div className="rounded-xl border border-dashed px-4 py-10 text-center">
-                    <p className="text-sm text-muted-foreground">Click a node or edge</p>
-                    <p className="text-xs text-muted-foreground/70">Shift+click for multi-select</p>
+                    <p className="text-sm text-muted-foreground">{t("project.empty.selection")}</p>
+                    <p className="text-xs text-muted-foreground/70">{t("project.empty.multiSelect")}</p>
                   </div>
                 )}
                 {selectedNode?.type === "fact" && selectedFacts.length > 1 && (
@@ -1016,7 +1030,7 @@ export function ProjectPage() {
                               size="sm"
                               onClick={() => toggleFact(fact.id)}
                             >
-                              Remove
+                              {t("common.remove")}
                             </Button>
                           </div>
                           <p className="text-sm break-words whitespace-pre-wrap">{fact.description}</p>
@@ -1035,11 +1049,11 @@ export function ProjectPage() {
                     </p>
                     {selectedFactIntent && (
                       <dl className="mt-3 grid grid-cols-2 gap-1 border-t pt-3 text-xs">
-                        <dt className="text-muted-foreground">Produced by</dt>
+                        <dt className="text-muted-foreground">{t("project.fact.producedBy")}</dt>
                         <dd className="text-right font-mono">{selectedFactIntent.id}</dd>
-                        <dt className="text-muted-foreground">From</dt>
+                        <dt className="text-muted-foreground">{t("project.fact.from")}</dt>
                         <dd className="text-right font-mono">{selectedFactIntent.from.join(", ")}</dd>
-                        <dt className="text-muted-foreground">Worker</dt>
+                        <dt className="text-muted-foreground">{t("project.fact.worker")}</dt>
                         <dd className="text-right">{selectedFactIntent.worker ?? "—"}</dd>
                       </dl>
                     )}
@@ -1053,34 +1067,37 @@ export function ProjectPage() {
                       </span>
                       <Badge variant="secondary">
                         {selectedIntentRecord.to
-                          ? "Concluded"
+                          ? t("project.intent.concluded")
                           : isBootstrapIntent(selectedIntentRecord)
                             ? selectedIntentRecord.worker
-                              ? "Bootstrap running"
-                              : "Bootstrap pending"
+                              ? t("project.intent.bootstrapRunning")
+                              : t("project.intent.bootstrapPending")
                             : selectedIntentRecord.worker
-                              ? "In progress"
-                              : "Unclaimed"}
+                              ? t("project.intent.inProgress")
+                              : t("project.intent.unclaimed")}
                       </Badge>
                     </div>
                     <p className="text-sm break-words whitespace-pre-wrap">
                       {selectedIntentRecord.description}
                     </p>
                     <dl className="mt-3 grid grid-cols-2 gap-1 border-t pt-3 text-xs">
-                      <dt className="text-muted-foreground">From</dt>
+                      <dt className="text-muted-foreground">{t("project.intent.from")}</dt>
                       <dd className="text-right font-mono">{selectedIntentRecord.from.join(", ")}</dd>
-                      <dt className="text-muted-foreground">To</dt>
+                      <dt className="text-muted-foreground">{t("project.intent.to")}</dt>
                       <dd className="text-right font-mono">{selectedIntentRecord.to ?? "—"}</dd>
-                      <dt className="text-muted-foreground">Worker</dt>
+                      <dt className="text-muted-foreground">{t("project.intent.worker")}</dt>
                       <dd className="text-right">{selectedIntentRecord.worker ?? "—"}</dd>
-                      <dt className="text-muted-foreground">Created</dt>
-                      <dd className="text-right">{formatTime(selectedIntentRecord.created_at)}</dd>
+                      <dt className="text-muted-foreground">{t("project.intent.created")}</dt>
+                      <dd className="text-right">{format.time(selectedIntentRecord.created_at)}</dd>
                     </dl>
                   </article>
                 )}
                 {producingIntent && selectedNode?.type === "fact" && (
                   <p className="text-xs text-muted-foreground">
-                    Produced by {producingIntent.id} from {producingIntent.from.join(", ")}
+                    {t("project.fact.producedByLine", {
+                      intent: producingIntent.id,
+                      from: producingIntent.from.join(", "),
+                    })}
                   </p>
                 )}
               </div>
@@ -1089,7 +1106,7 @@ export function ProjectPage() {
             {sideTab === "hints" && (
               <div className="space-y-2">
                 {project.hints.length === 0 && (
-                  <p className="py-10 text-center text-sm text-muted-foreground">No hints yet</p>
+                  <p className="py-10 text-center text-sm text-muted-foreground">{t("project.empty.hints")}</p>
                 )}
                 {project.hints.map((hint) => (
                   <button
@@ -1108,7 +1125,7 @@ export function ProjectPage() {
                   >
                     <div className="mb-2 flex items-center justify-between text-[11px] text-muted-foreground">
                       <span className="truncate font-medium">{hint.creator}</span>
-                      <span>{formatTime(hint.created_at)}</span>
+                      <span>{format.time(hint.created_at)}</span>
                     </div>
                     <p className="text-sm break-words whitespace-pre-wrap">{hint.content}</p>
                   </button>
@@ -1132,7 +1149,7 @@ export function ProjectPage() {
                       return (
                         <div key={kind} className="space-y-1 py-1">
                           <div className="flex justify-between text-[11px] text-muted-foreground">
-                            <span className="capitalize">{kind}</span>
+                            <span className="capitalize">{t(`project.timeline.${kind}`)}</span>
                             <span className="font-mono">{label}</span>
                           </div>
                           <div className="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -1144,7 +1161,7 @@ export function ProjectPage() {
                   </div>
                 )}
                 {timeline.length === 0 && (
-                  <p className="py-10 text-center text-sm text-muted-foreground">No activity yet</p>
+                  <p className="py-10 text-center text-sm text-muted-foreground">{t("project.empty.activity")}</p>
                 )}
                 {timeline.map((entry) => (
                   <div key={entry.id} id={`timeline-entry-${entry.id}`} className="flex gap-2">
@@ -1163,7 +1180,7 @@ export function ProjectPage() {
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-[11px] text-muted-foreground">
-                          {formatTime(entry.timestamp)}
+                          {format.time(entry.timestamp)}
                         </span>
                         <span
                           className={cn(
@@ -1171,10 +1188,10 @@ export function ProjectPage() {
                             timelineEventBadgeClass(entry),
                           )}
                         >
-                          {timelineEventBadge(entry)}
+                          {t(timelineEventBadge(entry))}
                         </span>
                         <span className="text-[11px] text-muted-foreground/70">
-                          {formatTimelineDate(entry.timestamp)}
+                          {format.timelineDate(entry.timestamp)}
                         </span>
                       </div>
                       <p className="mt-1 text-sm break-words">{entry.title}</p>
@@ -1195,24 +1212,26 @@ export function ProjectPage() {
       <Dialog open={intentOpen} onOpenChange={setIntentOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New intent</DialogTitle>
-            <DialogDescription>From facts: {selectedFacts.join(", ")}</DialogDescription>
+            <DialogTitle>{t("project.dialogs.intent.title")}</DialogTitle>
+            <DialogDescription>
+              {t("project.dialogs.intent.from", { facts: selectedFacts.join(", ") })}
+            </DialogDescription>
           </DialogHeader>
           <Textarea
             value={intentText}
             onChange={(event) => setIntentText(event.target.value)}
-            placeholder="What will you explore?"
+            placeholder={t("project.dialogs.intent.placeholder")}
             rows={3}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setIntentOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button variant="secondary" onClick={() => createIntent(false)} disabled={!intentText}>
-              Declare
+              {t("project.dialogs.intent.declare")}
             </Button>
             <Button onClick={() => createIntent(true)} disabled={!intentText}>
-              Declare &amp; Claim
+              {t("project.dialogs.intent.declareClaim")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1221,13 +1240,13 @@ export function ProjectPage() {
       <Dialog open={!!concludeTarget} onOpenChange={(open) => !open && setConcludeTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Conclude intent</DialogTitle>
+            <DialogTitle>{t("project.dialogs.conclude.title")}</DialogTitle>
             <DialogDescription>{concludeTarget?.id}</DialogDescription>
           </DialogHeader>
           <Textarea
             value={concludeText}
             onChange={(event) => setConcludeText(event.target.value)}
-            placeholder="What did you find? (new fact)"
+            placeholder={t("project.dialogs.conclude.placeholder")}
             rows={3}
           />
           <DialogFooter>
@@ -1235,7 +1254,7 @@ export function ProjectPage() {
               Cancel
             </Button>
             <Button onClick={concludeIntent} disabled={!concludeText}>
-              Conclude
+              {t("project.actions.conclude")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1244,13 +1263,15 @@ export function ProjectPage() {
       <Dialog open={completeOpen} onOpenChange={setCompleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Complete project</DialogTitle>
-            <DialogDescription>From facts: {selectedFacts.join(", ")}</DialogDescription>
+            <DialogTitle>{t("project.dialogs.complete.title")}</DialogTitle>
+            <DialogDescription>
+              {t("project.dialogs.intent.from", { facts: selectedFacts.join(", ") })}
+            </DialogDescription>
           </DialogHeader>
           <Textarea
             value={completeText}
             onChange={(event) => setCompleteText(event.target.value)}
-            placeholder="Why is the goal met?"
+            placeholder={t("project.dialogs.complete.placeholder")}
             rows={2}
           />
           <DialogFooter>
@@ -1258,7 +1279,7 @@ export function ProjectPage() {
               Cancel
             </Button>
             <Button onClick={completeProject} disabled={!completeText}>
-              Complete
+              {t("project.actions.complete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1267,20 +1288,20 @@ export function ProjectPage() {
       <Dialog open={hintOpen} onOpenChange={setHintOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add hint</DialogTitle>
+            <DialogTitle>{t("project.dialogs.hint.title")}</DialogTitle>
           </DialogHeader>
           <Textarea
             value={hintText}
             onChange={(event) => setHintText(event.target.value)}
-            placeholder="Strategy advice or note..."
+            placeholder={t("project.dialogs.hint.placeholder")}
             rows={3}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setHintOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button onClick={addHint} disabled={!hintText}>
-              Add
+              {t("common.add")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1289,7 +1310,7 @@ export function ProjectPage() {
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename project</DialogTitle>
+            <DialogTitle>{t("project.dialogs.rename.title")}</DialogTitle>
           </DialogHeader>
           <Input value={renameText} onChange={(event) => setRenameText(event.target.value)} />
           <DialogFooter>
@@ -1297,7 +1318,7 @@ export function ProjectPage() {
               Cancel
             </Button>
             <Button onClick={renameProject} disabled={!renameText}>
-              Save
+              {t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1306,12 +1327,12 @@ export function ProjectPage() {
       <Dialog open={reopenOpen} onOpenChange={setReopenOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reopen project</DialogTitle>
+            <DialogTitle>{t("project.dialogs.reopen.title")}</DialogTitle>
           </DialogHeader>
           <Textarea
             value={reopenText}
             onChange={(event) => setReopenText(event.target.value)}
-            placeholder="Why is this project not actually complete?"
+            placeholder={t("project.dialogs.reopen.placeholder")}
             rows={3}
           />
           <DialogFooter>
@@ -1319,7 +1340,7 @@ export function ProjectPage() {
               Cancel
             </Button>
             <Button onClick={reopenProject} disabled={!reopenText}>
-              Reopen
+              {t("project.reopen")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1328,15 +1349,15 @@ export function ProjectPage() {
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete project</DialogTitle>
-            <DialogDescription>This cannot be undone.</DialogDescription>
+            <DialogTitle>{t("project.dialogs.remove.title")}</DialogTitle>
+            <DialogDescription>{t("project.dialogs.remove.body")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={deleteProject}>
-              Delete
+              {t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1345,7 +1366,7 @@ export function ProjectPage() {
       <Dialog open={!!snapshot} onOpenChange={(open) => !open && setSnapshot(null)}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Snapshot</DialogTitle>
+            <DialogTitle>{t("project.snapshot")}</DialogTitle>
             <DialogDescription>{project.project.id}</DialogDescription>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-auto rounded-lg border bg-muted/40 p-3">
@@ -1354,12 +1375,17 @@ export function ProjectPage() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => snapshot && copyText(snapshot).then(() => toast.show("Copied"))}
+              onClick={() =>
+                snapshot &&
+                copyText(snapshot)
+                  .then(() => toast.show(t("common.copied")))
+                  .catch(() => toast.show(t("common.copyFailed"), "error"))
+              }
             >
               <Copy className="size-3.5" />
-              Copy
+              {t("common.copy")}
             </Button>
-            <Button onClick={() => setSnapshot(null)}>Close</Button>
+            <Button onClick={() => setSnapshot(null)}>{t("common.close")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

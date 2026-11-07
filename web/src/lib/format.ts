@@ -1,25 +1,35 @@
-export function formatTime(ts: string | null | undefined): string {
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
+
+export { LAYOUT_MODES, isValidLayoutMode } from "@/lib/format-shared";
+export type { LayoutMode, LayoutMode as LayoutModeType } from "@/lib/format-shared";
+
+function bcp47(locale: string | undefined): string | undefined {
+  return locale ? locale.replace("_", "-") : undefined;
+}
+
+export function formatTime(ts: string | null | undefined, locale?: string): string {
   if (!ts) return "";
-  return new Date(ts).toLocaleTimeString([], {
+  return new Date(ts).toLocaleTimeString(bcp47(locale), {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
   });
 }
 
-export function formatDate(ts: string | null | undefined): string {
+export function formatDate(ts: string | null | undefined, locale?: string): string {
   if (!ts) return "";
   const date = new Date(ts);
-  return `${date.toLocaleDateString([], {
+  return `${date.toLocaleDateString(bcp47(locale), {
     year: "numeric",
     month: "short",
     day: "numeric",
-  })} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  })} ${date.toLocaleTimeString(bcp47(locale), { hour: "2-digit", minute: "2-digit" })}`;
 }
 
-export function formatTimelineDate(ts: string | null | undefined): string {
+export function formatTimelineDate(ts: string | null | undefined, locale?: string): string {
   if (!ts) return "";
-  return new Date(ts).toLocaleDateString([], {
+  return new Date(ts).toLocaleDateString(bcp47(locale), {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -36,17 +46,17 @@ export function formatDurationMs(ms: number): string {
   return `${seconds}s`;
 }
 
-export const LAYOUT_MODES = [
-  "dagre_tb",
-  "dagre_lr",
-  "klay_tb",
-  "klay_lr",
-  "elk_tb",
-  "elk_lr",
-] as const;
-
-export type LayoutMode = (typeof LAYOUT_MODES)[number];
-
-export function isValidLayoutMode(mode: string): mode is LayoutMode {
-  return (LAYOUT_MODES as readonly string[]).includes(mode);
+export function useFormat() {
+  const { i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language;
+  return useMemo(
+    () => ({
+      locale,
+      time: (ts: string | null | undefined) => formatTime(ts, locale),
+      date: (ts: string | null | undefined) => formatDate(ts, locale),
+      timelineDate: (ts: string | null | undefined) => formatTimelineDate(ts, locale),
+      duration: formatDurationMs,
+    }),
+    [locale],
+  );
 }

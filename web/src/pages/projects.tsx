@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { FileCode2, Pencil, Plus, RotateCcw, Search, Square, Trash2 } from "lucide-react";
 
+import { useFormat } from "@/lib/format";
 import { usePrefs } from "@/hooks/use-prefs";
 import { useToast } from "@/hooks/use-toast";
 import { api, copyText, fetchText } from "@/lib/api";
-import { formatDate, formatTime } from "@/lib/format";
 import type { ProjectDetail, ProjectStatus, ProjectSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -38,12 +39,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-const STATUS_LABEL: Record<ProjectStatus, string> = {
-  active: "运行中",
-  stopped: "已暂停",
-  completed: "已完成",
-};
-
 const STATUS_BADGE: Record<ProjectStatus, "running" | "paused" | "done"> = {
   active: "running",
   stopped: "paused",
@@ -53,6 +48,8 @@ const STATUS_BADGE: Record<ProjectStatus, "running" | "paused" | "done"> = {
 export function ProjectsPage() {
   const toast = useToast();
   const navigate = useNavigate();
+  const { t } = useTranslation();
+  const format = useFormat();
   const { actorName } = usePrefs();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [query, setQuery] = useState("");
@@ -118,7 +115,7 @@ export function ProjectsPage() {
       setNewOpen(false);
       setNewForm({ title: "", origin: "", goal: "", bootstrap: true, hints: [""] });
       await load();
-      toast.show("Project created");
+      toast.show(t("projects.toast.created"));
       navigate(`/projects/${created.project.id}`);
     } catch (error) {
       toast.show((error as Error).message, "error");
@@ -129,7 +126,7 @@ export function ProjectsPage() {
     try {
       await api("PUT", `/projects/${projectId}/status`, { status: next });
       await load();
-      toast.show(next === "stopped" ? "Project stopped" : "Project resumed");
+      toast.show(t(next === "stopped" ? "projects.toast.stopped" : "projects.toast.resumed"));
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -146,7 +143,9 @@ export function ProjectsPage() {
       const failures = results.filter((result) => result.status === "rejected").length;
       await load();
       toast.show(
-        failures === 0 ? `Stopped ${active.length} project(s)` : `${failures} project(s) failed to stop`,
+        failures === 0
+          ? t("projects.toast.stoppedAll", { count: active.length })
+          : t("projects.toast.stoppedSome", { failed: failures }),
         failures === 0 ? "info" : "error",
       );
     } finally {
@@ -160,7 +159,7 @@ export function ProjectsPage() {
       await api("PUT", `/projects/${rename.id}/title`, { title: rename.title });
       setRename(null);
       await load();
-      toast.show("Project renamed");
+      toast.show(t("projects.toast.renamed"));
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -176,7 +175,7 @@ export function ProjectsPage() {
       setReopen(null);
       setReopenText("");
       await load();
-      toast.show("Project reopened");
+      toast.show(t("projects.toast.reopened"));
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -189,7 +188,7 @@ export function ProjectsPage() {
       await api("DELETE", `/projects/${removal.id}`);
       setRemoval(null);
       await load();
-      toast.show(`Deleted ${removal.id}`);
+      toast.show(t("projects.toast.deleted", { id: removal.id }));
     } catch (error) {
       toast.show((error as Error).message, "error");
     } finally {
@@ -210,9 +209,9 @@ export function ProjectsPage() {
     <div className="flex h-full flex-col overflow-hidden">
       <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-5">
         <div>
-          <h1 className="text-sm font-semibold">Projects</h1>
+          <h1 className="text-sm font-semibold">{t("projects.title")}</h1>
           <p className="text-xs text-muted-foreground">
-            {counts.active} running · {counts.stopped} paused · {counts.completed} done
+            {t("projects.summary", { active: counts.active, stopped: counts.stopped, done: counts.completed })}
           </p>
         </div>
         <div className="flex-1" />
@@ -223,7 +222,7 @@ export function ProjectsPage() {
           disabled={counts.active === 0 || stopping}
         >
           <Square className="size-3.5" />
-          Stop all
+          {t("projects.stopAll")}
         </Button>
       </header>
 
@@ -236,47 +235,49 @@ export function ProjectsPage() {
                 <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="搜索标题 / ID"
+                  placeholder={t("projects.searchPlaceholder")}
                   className="pl-8"
                 />
               </div>
               <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="w-36">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部状态</SelectItem>
-                  <SelectItem value="active">运行中</SelectItem>
-                  <SelectItem value="stopped">已暂停</SelectItem>
-                  <SelectItem value="completed">已完成</SelectItem>
+                  <SelectItem value="all">{t("projects.filterAll")}</SelectItem>
+                  <SelectItem value="active">{t("common.status.active")}</SelectItem>
+                  <SelectItem value="stopped">{t("common.status.stopped")}</SelectItem>
+                  <SelectItem value="completed">{t("common.status.completed")}</SelectItem>
                 </SelectContent>
               </Select>
-              <span className="text-xs text-muted-foreground">{filtered.length}/{counts.all} 条</span>
+              <span className="text-xs text-muted-foreground">
+                {t("projects.count", { shown: filtered.length, total: counts.all })}
+              </span>
               <div className="flex-1" />
               <Button size="sm" onClick={() => setNewOpen(true)}>
                 <Plus className="size-4" />
-                新建项目
+                {t("projects.newProject")}
               </Button>
             </div>
 
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-28">ID</TableHead>
-                  <TableHead>标题</TableHead>
-                  <TableHead className="w-24">状态</TableHead>
-                  <TableHead className="w-20 text-right">事实</TableHead>
-                  <TableHead className="w-20 text-right">意图</TableHead>
-                  <TableHead className="w-20 text-right">提示</TableHead>
-                  <TableHead className="w-40">创建时间</TableHead>
-                  <TableHead className="w-56 text-right">操作</TableHead>
+                  <TableHead className="w-28">{t("projects.header.id")}</TableHead>
+                  <TableHead>{t("projects.header.title")}</TableHead>
+                  <TableHead className="w-24">{t("projects.header.status")}</TableHead>
+                  <TableHead className="w-20 text-right">{t("projects.header.facts")}</TableHead>
+                  <TableHead className="w-20 text-right">{t("projects.header.intents")}</TableHead>
+                  <TableHead className="w-20 text-right">{t("projects.header.hints")}</TableHead>
+                  <TableHead className="w-40">{t("projects.header.created")}</TableHead>
+                  <TableHead className="w-56 text-right">{t("projects.header.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={8} className="py-16 text-center text-muted-foreground">
-                      没有匹配的项目
+                      {t("projects.empty")}
                     </TableCell>
                   </TableRow>
                 )}
@@ -295,12 +296,17 @@ export function ProjectsPage() {
                       </Link>
                       {project.reason && (
                         <p className="truncate text-[11px] text-sky-600">
-                          Reasoning · {project.reason.worker} · {formatTime(project.reason.last_heartbeat_at)}
+                          {t("projects.reasonRunning", {
+                            worker: project.reason.worker,
+                            time: format.time(project.reason.last_heartbeat_at),
+                          })}
                         </p>
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={STATUS_BADGE[project.status]}>{STATUS_LABEL[project.status]}</Badge>
+                      <Badge variant={STATUS_BADGE[project.status]}>
+                        {t(`common.status.${project.status}`)}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{project.fact_count}</TableCell>
                     <TableCell className="text-right tabular-nums">
@@ -311,18 +317,18 @@ export function ProjectsPage() {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{project.hint_count}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {formatDate(project.created_at)}
+                      {format.date(project.created_at)}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
                         <Button variant="outline" size="sm" onClick={() => void openSnapshot(project)}>
                           <FileCode2 className="size-3.5" />
-                          Snapshot
+                          {t("projects.snapshot")}
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          title="重命名"
+                          title={t("common.edit")}
                           onClick={() => setRename({ id: project.id, title: project.title })}
                         >
                           <Pencil className="size-3.5" />
@@ -331,7 +337,7 @@ export function ProjectsPage() {
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            title="暂停"
+                            title={t("project.stop")}
                             onClick={() => void setProjectStatus(project.id, "stopped")}
                           >
                             <Square className="size-3.5" />
@@ -341,7 +347,7 @@ export function ProjectsPage() {
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            title="恢复"
+                            title={t("project.resume")}
                             onClick={() => void setProjectStatus(project.id, "active")}
                           >
                             <RotateCcw className="size-3.5" />
@@ -351,7 +357,7 @@ export function ProjectsPage() {
                           variant="ghost"
                           size="icon-sm"
                           className="text-destructive hover:text-destructive"
-                          title="删除"
+                          title={t("common.delete")}
                           onClick={() => setRemoval({ id: project.id, title: project.title })}
                         >
                           <Trash2 className="size-3.5" />
@@ -363,10 +369,8 @@ export function ProjectsPage() {
               </TableBody>
             </Table>
             <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground">
-              <span>每页 20 条</span>
-              <span>
-                1-{filtered.length} / 共 {counts.all} 条
-              </span>
+              <span>{t("projects.perPage")}</span>
+              <span>{t("projects.pagination", { shown: filtered.length, total: counts.all })}</span>
             </div>
           </div>
         </div>
@@ -375,25 +379,25 @@ export function ProjectsPage() {
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>New project</DialogTitle>
-            <DialogDescription>Define the origin, the goal and optional hints.</DialogDescription>
+            <DialogTitle>{t("projects.new.title")}</DialogTitle>
+            <DialogDescription>{t("projects.new.description")}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
             <Input
               value={newForm.title}
               onChange={(event) => setNewForm((form) => ({ ...form, title: event.target.value }))}
-              placeholder="Project title"
+              placeholder={t("projects.new.projectTitle")}
             />
             <Textarea
               value={newForm.origin}
               onChange={(event) => setNewForm((form) => ({ ...form, origin: event.target.value }))}
-              placeholder="Origin — starting point"
+              placeholder={t("projects.new.origin")}
               rows={2}
             />
             <Textarea
               value={newForm.goal}
               onChange={(event) => setNewForm((form) => ({ ...form, goal: event.target.value }))}
-              placeholder="Goal — what to achieve"
+              placeholder={t("projects.new.goal")}
               rows={2}
             />
             <div className="flex items-center gap-2">
@@ -401,24 +405,24 @@ export function ProjectsPage() {
                 checked={newForm.bootstrap}
                 onCheckedChange={(checked) => setNewForm((form) => ({ ...form, bootstrap: checked }))}
               />
-              <Label>Run bootstrap attempt</Label>
+              <Label>{t("projects.new.bootstrap")}</Label>
             </div>
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground">Hints (optional)</Label>
+                <Label className="text-xs text-muted-foreground">{t("projects.new.hints")}</Label>
                 <Button
                   variant="link"
                   size="sm"
                   onClick={() => setNewForm((form) => ({ ...form, hints: [...form.hints, ""] }))}
                 >
-                  + Add
+                  + {t("common.add")}
                 </Button>
               </div>
               {newForm.hints.map((hint, index) => (
                 <Input
                   key={index}
                   value={hint}
-                  placeholder="Hint content"
+                  placeholder={t("projects.new.hintPlaceholder")}
                   onChange={(event) =>
                     setNewForm((form) => ({
                       ...form,
@@ -429,18 +433,20 @@ export function ProjectsPage() {
                   }
                 />
               ))}
-              <p className="text-[11px] text-muted-foreground">Hint creator: {actorName}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {t("projects.new.hintCreator", { actor: actorName })}
+              </p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={createProject}
               disabled={!newForm.title || !newForm.origin || !newForm.goal}
             >
-              Create
+              {t("common.create")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -449,19 +455,22 @@ export function ProjectsPage() {
       <Dialog open={!!rename} onOpenChange={(open) => !open && setRename(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename project</DialogTitle>
+            <DialogTitle>{t("projects.rename.title")}</DialogTitle>
             <DialogDescription>{rename ? `${rename.id} - ${rename.title}` : ""}</DialogDescription>
           </DialogHeader>
           <Input
             value={rename?.title ?? ""}
-            onChange={(event) => setRename((current) => (current ? { ...current, title: event.target.value } : current))}
+            onChange={(event) =>
+              setRename((current) => (current ? { ...current, title: event.target.value } : current))
+            }
           />
+          <p className="text-[11px] text-muted-foreground">{t("projects.rename.hint")}</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRename(null)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button onClick={renameProject} disabled={!rename?.title}>
-              Save
+              {t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -470,21 +479,21 @@ export function ProjectsPage() {
       <Dialog open={!!reopen} onOpenChange={(open) => !open && setReopen(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reopen project</DialogTitle>
+            <DialogTitle>{t("projects.reopen.title")}</DialogTitle>
             <DialogDescription>{reopen ? `${reopen.id} - ${reopen.title}` : ""}</DialogDescription>
           </DialogHeader>
           <Textarea
             value={reopenText}
             onChange={(event) => setReopenText(event.target.value)}
-            placeholder="Why is this project not actually complete?"
+            placeholder={t("projects.reopen.placeholder")}
             rows={3}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setReopen(null)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button onClick={reopenProject} disabled={!reopenText}>
-              Reopen
+              {t("project.reopen")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -493,17 +502,17 @@ export function ProjectsPage() {
       <Dialog open={!!removal} onOpenChange={(open) => !open && setRemoval(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete project</DialogTitle>
+            <DialogTitle>{t("projects.removal.title")}</DialogTitle>
             <DialogDescription>
-              Permanently remove {removal ? `${removal.id} - ${removal.title}` : ""}. This cannot be undone.
+              {t("projects.removal.body", { label: removal ? `${removal.id} - ${removal.title}` : "" })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRemoval(null)} disabled={deleting}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button variant="destructive" onClick={deleteProject} disabled={deleting}>
-              {deleting ? "Deleting..." : "Delete"}
+              {deleting ? t("common.deleting") : t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -512,7 +521,7 @@ export function ProjectsPage() {
       <Dialog open={!!snapshot} onOpenChange={(open) => !open && setSnapshot(null)}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Snapshot</DialogTitle>
+            <DialogTitle>{t("projects.snapshotTitle")}</DialogTitle>
             <DialogDescription>{snapshot?.title}</DialogDescription>
           </DialogHeader>
           <div className={cn("max-h-[60vh] overflow-auto rounded-lg border bg-muted/40 p-3")}>
@@ -521,11 +530,16 @@ export function ProjectsPage() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => snapshot && copyText(snapshot.text).then(() => toast.show("Copied"))}
+              onClick={() =>
+                snapshot &&
+                copyText(snapshot.text)
+                  .then(() => toast.show(t("common.copied")))
+                  .catch(() => toast.show(t("common.copyFailed"), "error"))
+              }
             >
-              Copy
+              {t("common.copy")}
             </Button>
-            <Button onClick={() => setSnapshot(null)}>Close</Button>
+            <Button onClick={() => setSnapshot(null)}>{t("common.close")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

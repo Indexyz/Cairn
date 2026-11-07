@@ -197,15 +197,15 @@ export function buildTimeline(project: ProjectDetail | null): TimelineEvent[] {
 
 export function timelineEventBadge(entry: TimelineEvent): string {
   const labels: Record<string, string> = {
-    project_created: "Project",
-    hint_added: "Hint",
-    reason_started: "Reason",
-    intent_declared: "Intent",
-    intent_running: "Execute",
-    intent_concluded: "Conclude",
-    project_completed: "Complete",
+    project_created: "project.timeline.badge.project",
+    hint_added: "project.timeline.badge.hint",
+    reason_started: "project.timeline.badge.reason",
+    intent_declared: "project.timeline.badge.intent",
+    intent_running: "project.timeline.badge.execute",
+    intent_concluded: "project.timeline.badge.conclude",
+    project_completed: "project.timeline.badge.complete",
   };
-  return labels[entry.type] ?? "Event";
+  return labels[entry.type] ?? "project.timeline.badge.event";
 }
 
 export function timelineEventBadgeClass(entry: TimelineEvent): string {

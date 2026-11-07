@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FlaskConical, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
@@ -96,6 +97,7 @@ function toPayload(form: ModelForm): WorkerModel {
 
 export function ModelsPage() {
   const toast = useToast();
+  const { t } = useTranslation();
   const [models, setModels] = useState<WorkerModel[]>([]);
   const [query, setQuery] = useState("");
   const [type, setType] = useState<"all" | WorkerType>("all");
@@ -105,29 +107,6 @@ export function ModelsPage() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, ModelTestResult>>({});
-
-  async function testModel(model: WorkerModel) {
-    if (testing) return;
-    setTesting(model.name);
-    try {
-      const result = await api<ModelTestResult>("POST", `/models/${encodeURIComponent(model.name)}/test`);
-      setResults((current) => ({ ...current, [model.name]: result }));
-      if (result.ok) {
-        toast.show(`${model.name} answered in ${result.duration_ms}ms`);
-      } else {
-        toast.show(`${model.name} failed${result.status ? ` (${result.status})` : ""}`, "error");
-      }
-    } catch (error) {
-      setResults((current) => {
-        const next = { ...current };
-        delete next[model.name];
-        return next;
-      });
-      toast.show((error as Error).message, "error");
-    } finally {
-      setTesting(null);
-    }
-  }
 
   async function load() {
     try {
@@ -188,11 +167,40 @@ export function ModelsPage() {
       setForm(null);
       setOriginalName(null);
       await load();
-      toast.show(originalName === null ? "Model created" : "Model updated");
+      toast.show(t(originalName === null ? "models.toast.created" : "models.toast.updated"));
     } catch (error) {
       toast.show((error as Error).message, "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function testModel(model: WorkerModel) {
+    if (testing) return;
+    setTesting(model.name);
+    try {
+      const result = await api<ModelTestResult>("POST", `/models/${encodeURIComponent(model.name)}/test`);
+      setResults((current) => ({ ...current, [model.name]: result }));
+      if (result.ok) {
+        toast.show(t("models.test.okToast", { name: model.name, ms: result.duration_ms }));
+      } else {
+        toast.show(
+          t("models.test.failToast", {
+            name: model.name,
+            status: result.status ? ` (${result.status})` : "",
+          }),
+          "error",
+        );
+      }
+    } catch (error) {
+      setResults((current) => {
+        const next = { ...current };
+        delete next[model.name];
+        return next;
+      });
+      toast.show((error as Error).message, "error");
+    } finally {
+      setTesting(null);
     }
   }
 
@@ -202,7 +210,7 @@ export function ModelsPage() {
       await api("DELETE", `/models/${encodeURIComponent(removal.name)}`);
       setRemoval(null);
       await load();
-      toast.show(`Deleted ${removal.name}`);
+      toast.show(t("models.toast.deleted", { name: removal.name }));
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -220,10 +228,8 @@ export function ModelsPage() {
     <div className="flex h-full flex-col overflow-hidden">
       <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-5">
         <div>
-          <h1 className="text-sm font-semibold">Models</h1>
-          <p className="text-xs text-muted-foreground">
-            Dispatcher 每轮热更新，保存后下一轮生效
-          </p>
+          <h1 className="text-sm font-semibold">{t("models.title")}</h1>
+          <p className="text-xs text-muted-foreground">{t("models.subtitle")}</p>
         </div>
       </header>
 
@@ -236,7 +242,7 @@ export function ModelsPage() {
                 <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="搜索名称 / 任务类型 / env key"
+                  placeholder={t("models.searchPlaceholder")}
                   className="pl-8"
                 />
               </div>
@@ -245,7 +251,7 @@ export function ModelsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部类型</SelectItem>
+                  <SelectItem value="all">{t("models.filterAll")}</SelectItem>
                   {WORKER_TYPES.map((item) => (
                     <SelectItem key={item} value={item}>
                       {item}
@@ -254,33 +260,33 @@ export function ModelsPage() {
                 </SelectContent>
               </Select>
               <span className="text-xs text-muted-foreground">
-                {filtered.length}/{models.length} 条
+                {t("models.count", { shown: filtered.length, total: models.length })}
               </span>
               <div className="flex-1" />
               <Button size="sm" onClick={openCreate}>
                 <Plus className="size-4" />
-                新建模型
+                {t("models.newModel")}
               </Button>
             </div>
 
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-56">名称</TableHead>
-                  <TableHead className="w-32">类型</TableHead>
-                  <TableHead>任务类型</TableHead>
-                  <TableHead className="w-24 text-right">优先级</TableHead>
-                  <TableHead className="w-24 text-right">并发</TableHead>
-                  <TableHead className="w-24 text-right">env</TableHead>
-                  <TableHead className="w-32">检测</TableHead>
-                  <TableHead className="w-32 text-right">操作</TableHead>
+                  <TableHead className="w-56">{t("models.header.name")}</TableHead>
+                  <TableHead className="w-32">{t("models.header.type")}</TableHead>
+                  <TableHead>{t("models.header.taskTypes")}</TableHead>
+                  <TableHead className="w-24 text-right">{t("models.header.priority")}</TableHead>
+                  <TableHead className="w-24 text-right">{t("models.header.concurrency")}</TableHead>
+                  <TableHead className="w-24 text-right">{t("models.header.env")}</TableHead>
+                  <TableHead className="w-32">{t("models.header.test")}</TableHead>
+                  <TableHead className="w-32 text-right">{t("models.header.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={8} className="py-16 text-center text-muted-foreground">
-                      还没有模型。新建一个后 dispatcher 会自动加载。
+                      {t("models.empty")}
                     </TableCell>
                   </TableRow>
                 )}
@@ -303,19 +309,22 @@ export function ModelsPage() {
                     <TableCell>
                       {results[model.name] ? (
                         results[model.name].ok ? (
-                          <Badge variant="done" title={`${results[model.name].endpoint} · ${results[model.name].duration_ms}ms`}>
-                            可用 · {results[model.name].duration_ms}ms
+                          <Badge
+                            variant="done"
+                            title={`${results[model.name].endpoint} · ${results[model.name].duration_ms}ms`}
+                          >
+                            {t("models.test.ok", { ms: results[model.name].duration_ms })}
                           </Badge>
                         ) : (
                           <Badge
                             variant="destructive"
-                            title={`HTTP ${results[model.name].status ?? "-"} · ${results[model.name].detail || "no detail"}`}
+                            title={`HTTP ${results[model.name].status ?? "-"} · ${results[model.name].detail || "-"}`}
                           >
-                            失败 · {results[model.name].status ?? "-"}
+                            {t("models.test.fail", { status: results[model.name].status ?? "-" })}
                           </Badge>
                         )
                       ) : (
-                        <span className="text-xs text-muted-foreground">未检测</span>
+                        <span className="text-xs text-muted-foreground">{t("models.test.idle")}</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -323,7 +332,7 @@ export function ModelsPage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          title="检测连通性（从 server 主机发起）"
+                          title={t("models.test.action")}
                           disabled={testing !== null}
                           onClick={() => void testModel(model)}
                         >
@@ -333,14 +342,19 @@ export function ModelsPage() {
                             <FlaskConical className="size-3.5" />
                           )}
                         </Button>
-                        <Button variant="ghost" size="icon-sm" title="编辑" onClick={() => openEdit(model)}>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          title={t("common.edit")}
+                          onClick={() => openEdit(model)}
+                        >
                           <Pencil className="size-3.5" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon-sm"
                           className="text-destructive hover:text-destructive"
-                          title="删除"
+                          title={t("common.delete")}
                           onClick={() => setRemoval(model)}
                         >
                           <Trash2 className="size-3.5" />
@@ -352,8 +366,8 @@ export function ModelsPage() {
               </TableBody>
             </Table>
             <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground">
-              <span>优先级升序执行 · 检测由 server 主机发起，与 dispatcher 无关</span>
-              <span>共 {models.length} 条</span>
+              <span>{t("models.footer.order")}</span>
+              <span>{t("models.footer.total", { count: models.length })}</span>
             </div>
           </div>
         </div>
@@ -362,40 +376,43 @@ export function ModelsPage() {
       <Dialog open={!!form} onOpenChange={(open) => !open && setForm(null)}>
         <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{originalName ? "Edit model" : "New model"}</DialogTitle>
-            <DialogDescription>
-              保存即写入数据库；dispatcher 在下一轮调度时生效。
-            </DialogDescription>
+            <DialogTitle>
+              {t(originalName ? "models.form.editTitle" : "models.form.newTitle")}
+            </DialogTitle>
+            <DialogDescription>{t("models.form.description")}</DialogDescription>
           </DialogHeader>
           {form && (
             <div className="grid gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="model-name">名称</Label>
+                <Label htmlFor="model-name">{t("models.form.name")}</Label>
                 <Input
                   id="model-name"
                   value={form.name}
-                  placeholder="claudecode_deepseek-v4-pro"
-                  onChange={(event) => setForm((current) => (current ? { ...current, name: event.target.value } : current))}
+                  placeholder={t("models.form.namePlaceholder")}
+                  onChange={(event) =>
+                    setForm((current) => (current ? { ...current, name: event.target.value } : current))
+                  }
                 />
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div className="grid gap-2">
-                  <Label>类型</Label>
+                  <Label>{t("models.form.type")}</Label>
                   <Select
                     value={form.type}
                     onValueChange={(value) =>
                       setForm((current) => {
                         if (!current) return current;
-                        const type = value as WorkerType;
-                        const preset = TYPE_ENV_KEYS[type];
+                        const nextType = value as WorkerType;
+                        const preset = TYPE_ENV_KEYS[nextType];
                         const existing = new Map(current.env.map((row) => [row.key, row.value]));
                         return {
                           ...current,
-                          type,
-                          env: preset.length > 0
-                            ? preset.map((key) => ({ key, value: existing.get(key) ?? "" }))
-                            : current.env,
+                          type: nextType,
+                          env:
+                            preset.length > 0
+                              ? preset.map((key) => ({ key, value: existing.get(key) ?? "" }))
+                              : current.env,
                         };
                       })
                     }
@@ -413,7 +430,7 @@ export function ModelsPage() {
                   </Select>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="model-priority">优先级</Label>
+                  <Label htmlFor="model-priority">{t("models.form.priority")}</Label>
                   <Input
                     id="model-priority"
                     type="number"
@@ -427,7 +444,7 @@ export function ModelsPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="model-max">最大并发</Label>
+                  <Label htmlFor="model-max">{t("models.form.concurrency")}</Label>
                   <Input
                     id="model-max"
                     type="number"
@@ -443,7 +460,7 @@ export function ModelsPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label>任务类型</Label>
+                <Label>{t("models.form.taskTypes")}</Label>
                 <div className="flex flex-wrap gap-2">
                   {TASK_TYPES.map((taskType) => {
                     const checked = form.task_types.includes(taskType);
@@ -475,7 +492,7 @@ export function ModelsPage() {
 
               <div className="grid gap-2">
                 <div className="flex items-center justify-between">
-                  <Label>环境变量</Label>
+                  <Label>{t("models.form.env")}</Label>
                   <Button
                     variant="link"
                     size="sm"
@@ -485,11 +502,11 @@ export function ModelsPage() {
                       )
                     }
                   >
-                    + Add
+                    {t("models.form.addEnv")}
                   </Button>
                 </div>
                 {form.env.length === 0 && (
-                  <p className="text-xs text-muted-foreground">该类型无需 env。</p>
+                  <p className="text-xs text-muted-foreground">{t("models.form.noEnv")}</p>
                 )}
                 {form.env.map((row, index) => (
                   <div key={index} className="flex gap-2">
@@ -520,18 +537,16 @@ export function ModelsPage() {
                     </Button>
                   </div>
                 ))}
-                <p className="text-[11px] text-muted-foreground">
-                  API key 以明文存于数据库；dispatch.yaml 的 common_env 仍会合并进每个模型。
-                </p>
+                <p className="text-[11px] text-muted-foreground">{t("models.form.envNote")}</p>
               </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setForm(null)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button onClick={save} disabled={!valid || saving}>
-              {saving ? "Saving..." : "Save"}
+              {saving ? t("common.saving") : t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -540,17 +555,17 @@ export function ModelsPage() {
       <Dialog open={!!removal} onOpenChange={(open) => !open && setRemoval(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete model</DialogTitle>
+            <DialogTitle>{t("models.removal.title")}</DialogTitle>
             <DialogDescription>
-              删除 {removal?.name} 后，若有运行中的任务会继续跑完，新任务不再分配给它。
+              {t("models.removal.body", { name: removal?.name ?? "" })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRemoval(null)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button variant="destructive" onClick={remove}>
-              Delete
+              {t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { api } from "@/lib/api";
 import type { ServerSettings } from "@/lib/types";
 import { usePrefs } from "@/hooks/use-prefs";
 import { useToast } from "@/hooks/use-toast";
 import { LAYOUT_MODES, type LayoutMode } from "@/lib/format";
+import { SUPPORTED_LOCALES, currentLocale, setLocale, type Locale } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,15 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const LAYOUT_LABELS: Record<LayoutMode, string> = {
-  dagre_tb: "Dagre ↓",
-  dagre_lr: "Dagre →",
-  klay_tb: "Klay ↓",
-  klay_lr: "Klay →",
-  elk_tb: "ELK ↓",
-  elk_lr: "ELK →",
-};
-
 export function SettingsDialog({
   open,
   onOpenChange,
@@ -42,6 +35,7 @@ export function SettingsDialog({
 }) {
   const { prefs, save } = usePrefs();
   const toast = useToast();
+  const { t } = useTranslation();
   const [server, setServer] = useState<ServerSettings>({ intent_timeout: 5, reason_timeout: 5 });
   const [actor, setActor] = useState(prefs.actor_name);
   const [layout, setLayout] = useState<LayoutMode>(prefs.layout_mode);
@@ -60,7 +54,7 @@ export function SettingsDialog({
       await api<ServerSettings>("PUT", "/settings", server);
       save({ actor_name: actor, layout_mode: layout });
       onOpenChange(false);
-      toast.show("Settings saved");
+      toast.show(t("settings.saved"));
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -70,14 +64,12 @@ export function SettingsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>
-            Dispatcher timeouts are shared; actor and layout stay in this browser.
-          </DialogDescription>
+          <DialogTitle>{t("settings.title")}</DialogTitle>
+          <DialogDescription>{t("settings.description")}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="intent-timeout">Intent timeout (seconds)</Label>
+            <Label htmlFor="intent-timeout">{t("settings.intentTimeout")}</Label>
             <Input
               id="intent-timeout"
               type="number"
@@ -89,7 +81,7 @@ export function SettingsDialog({
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="reason-timeout">Reason timeout (seconds)</Label>
+            <Label htmlFor="reason-timeout">{t("settings.reasonTimeout")}</Label>
             <Input
               id="reason-timeout"
               type="number"
@@ -101,16 +93,31 @@ export function SettingsDialog({
             />
           </div>
           <div className="grid gap-2 border-t pt-4">
-            <Label htmlFor="actor">Actor</Label>
+            <Label htmlFor="actor">{t("settings.actor")}</Label>
             <Input
               id="actor"
               value={actor}
-              placeholder="Your name"
+              placeholder={t("settings.actorPlaceholder")}
               onChange={(event) => setActor(event.target.value)}
             />
           </div>
           <div className="grid gap-2">
-            <Label>Default graph layout</Label>
+            <Label>{t("settings.language")}</Label>
+            <Select value={currentLocale()} onValueChange={(value) => setLocale(value as Locale)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SUPPORTED_LOCALES.map((locale) => (
+                  <SelectItem key={locale} value={locale}>
+                    {t(`language.${locale}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label>{t("settings.defaultLayout")}</Label>
             <Select value={layout} onValueChange={(value) => setLayout(value as LayoutMode)}>
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -118,18 +125,19 @@ export function SettingsDialog({
               <SelectContent>
                 {LAYOUT_MODES.map((mode) => (
                   <SelectItem key={mode} value={mode}>
-                    {LAYOUT_LABELS[mode]}
+                    {t(`layouts.${mode}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-[11px] text-muted-foreground">{t("settings.storedLocally")}</p>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("common.cancel")}
           </Button>
-          <Button onClick={persist}>Save</Button>
+          <Button onClick={persist}>{t("common.save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -8,5 +8,6 @@ dispatch.yaml
 # web build output
 web/node_modules/
 web/dist/
+web/tsconfig.tsbuildinfo
 cairn/src/cairn/server/static/index.html
 cairn/src/cairn/server/static/assets/
