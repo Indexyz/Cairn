@@ -15,6 +15,16 @@ from cairn.server.models import Intent, ProjectDetail, ProjectSummary, Settings
 LOG = logging.getLogger(__name__)
 
 
+class WorkerModelView(WorkerConfig):
+    """Worker model as returned by `GET/PUT /models`.
+
+    `used` is a server-only read field, so the strict `WorkerConfig` used for dispatch.yaml
+    and request bodies stays untouched.
+    """
+
+    used: int = 0
+
+
 class ProtocolError(RuntimeError):
     def __init__(self, message: str, status_code: int, response_text: str = ""):
         super().__init__(message)
@@ -38,7 +48,7 @@ class CairnClient:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
         self._summary_adapter = TypeAdapter(list[ProjectSummary])
-        self._model_adapter = TypeAdapter(list[WorkerConfig])
+        self._model_adapter = TypeAdapter(list[WorkerModelView])
         self._local = threading.local()
         self._sessions: dict[int, requests.Session] = {}
         self._sessions_lock = threading.Lock()
@@ -71,7 +81,18 @@ class CairnClient:
         return self._model_adapter.validate_python(response.json())
 
     def replace_models(self, models: list[WorkerConfig]) -> list[WorkerConfig]:
-        payload = [model.model_dump(mode="json") for model in models]
+        # Dump explicitly so a read-side `used` never leaks into the strict request body.
+        payload = [
+            {
+                "name": model.name,
+                "type": model.type,
+                "task_types": list(model.task_types),
+                "max_running": model.max_running,
+                "priority": model.priority,
+                "env": dict(model.env),
+            }
+            for model in models
+        ]
         response = self._session().put(self._url("/models"), json={"models": payload}, timeout=self._timeout)
         response.raise_for_status()
         return self._model_adapter.validate_python(response.json())

@@ -182,3 +182,66 @@ def test_usage_report_accepts_an_empty_payload(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert [item["used"] for item in response.json()] == [0]
+
+
+class _TestClientSession:
+    """Bridge the dispatcher client onto TestClient so the HTTP contract is exercised."""
+
+    def __init__(self, test_client) -> None:
+        self._client = test_client
+        self.calls: list[dict] = []
+
+    def get(self, url, timeout=None, **kwargs):
+        return self._client.get(url, **kwargs)
+
+    def put(self, url, json=None, timeout=None, **kwargs):
+        self.calls.append({"url": url, "json": json})
+        return self._client.put(url, json=json, **kwargs)
+
+    def request(self, method, url, json=None, timeout=None, **kwargs):
+        return self._client.request(method, url, json=json, **kwargs)
+
+    def close(self) -> None:
+        return None
+
+
+def _dispatcher_client(client: TestClient):
+    from cairn.dispatcher.protocol.client import CairnClient
+
+    session = _TestClientSession(client)
+    transport = CairnClient("http://testserver")
+    transport._session = lambda: session
+    return transport, session
+
+
+def test_dispatcher_client_parses_model_responses_with_read_only_fields(client: TestClient) -> None:
+    from pydantic import ValidationError
+
+    from cairn.dispatcher.config import WorkerConfig
+    from cairn.dispatcher.protocol.client import WorkerModelView
+
+    client.post("/models", json=_model("parsed"))
+    client.put("/models/usage", json={"usage": [{"name": "parsed", "used": 1}]})
+
+    transport, _ = _dispatcher_client(client)
+
+    models = transport.list_models()
+
+    assert [model.name for model in models] == ["parsed"]
+    assert isinstance(models[0], WorkerModelView)
+    assert models[0].used == 1
+    # The strict write model is unchanged for dispatch.yaml and request bodies.
+    with pytest.raises(ValidationError):
+        WorkerConfig.model_validate({**_model("strict"), "used": 1})
+
+
+def test_dispatcher_client_replace_models_round_trips_without_leaking_used(client: TestClient) -> None:
+    client.post("/models", json=_model("kept"))
+    transport, session = _dispatcher_client(client)
+
+    models = transport.list_models()
+    replaced = transport.replace_models(models)
+
+    assert [model.name for model in replaced] == ["kept"]
+    sent = session.calls[-1]["json"]["models"]
+    assert all("used" not in entry for entry in sent)
