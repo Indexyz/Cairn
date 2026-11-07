@@ -1,0 +1,21 @@
+.git
+.github
+.gitignore
+nix
+container
+docs
+README
+README.md
+LICENSE
+
+# rebuilt inside the image
+web/node_modules
+web/dist
+cairn/.venv
+cairn/src/cairn/server/static/assets
+cairn/src/cairn/server/static/index.html
+
+# runtime state
+datas
+dispatch.yaml
+result

@@ -148,6 +148,8 @@ docker pull ghcr.io/oritera/cairn-worker-container:latest
 
 The image is multi-arch (`linux/amd64`, `linux/arm64`) and Docker picks the host architecture automatically. On an arm64 host that cannot emulate amd64 — or when pinning either side — set `container.platform` in `dispatch.yaml`.
 
+The app image (API server plus the built Web UI, which also serves the dispatcher) is published the same way as `ghcr.io/<fork owner>/cairn:latest`, also multi-arch. `docker compose up --build` builds it locally instead of pulling it.
+
 Create your local dispatcher configuration and fill in your LLM endpoints and API keys:
 
 ```bash
