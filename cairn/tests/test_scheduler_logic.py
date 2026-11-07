@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import Future
+import logging
 from pathlib import Path
 
 import pytest
@@ -426,8 +427,79 @@ def test_sync_workers_keeps_previous_set_on_request_failure() -> None:
     assert [model.name for model in loop.config.workers] == ["stable"]
 
 
-def test_sync_workers_requires_a_model_set() -> None:
+def test_sync_workers_idles_when_no_models_are_configured(caplog) -> None:
     loop = _sync_loop(_ModelsClient(), [])
 
-    with pytest.raises(RuntimeError):
+    with caplog.at_level(logging.WARNING, logger="cairn.dispatcher.scheduler.loop"):
         loop._sync_workers()
+        loop._sync_workers()
+
+    assert loop.config.workers == []
+    assert "workers/idle" in loop._log_state
+    # The warning is emitted once, not on every tick.
+    warnings = [record for record in caplog.records if "idling" in record.getMessage()]
+    assert len(warnings) == 1
+
+
+def test_sync_workers_resumes_after_models_are_added() -> None:
+    client = _ModelsClient()
+    loop = _sync_loop(client, [])
+    loop._sync_workers()
+
+    client.models = [_model("added")]
+    loop._sync_workers()
+
+    assert [model.name for model in loop.config.workers] == ["added"]
+    assert "workers/idle" not in loop._log_state
+
+
+def test_sync_workers_survives_request_failure_without_previous_models() -> None:
+    loop = _sync_loop(_ModelsClient(fail=True), [])
+
+    loop._sync_workers()
+
+    assert loop.config.workers == []
+
+
+def test_startup_healthchecks_are_deferred_while_no_models_are_configured() -> None:
+    loop = _sync_loop(_ModelsClient(), [])
+    calls: list[bool] = []
+    loop._run_startup_healthchecks = lambda *, show_commands: calls.append(show_commands)
+    loop._startup_healthchecks_checked = False
+
+    loop.run_startup_healthchecks()
+
+    assert calls == []
+    assert not loop._startup_healthchecks_checked
+
+
+def test_dispatch_is_skipped_without_models(caplog) -> None:
+    loop = _sync_loop(_ModelsClient(), [])
+    calls: list[str] = []
+
+    class _Client(_ModelsClient):
+        def get_project(self, project_id: str):
+            calls.append(project_id)
+            return make_project()
+
+    loop.client = _Client()
+
+    with caplog.at_level(logging.INFO, logger="cairn.dispatcher.scheduler.loop"):
+        loop._dispatch_available([_summary("proj_001", "active")])
+
+    assert calls == []
+    assert any("no worker models" in record.getMessage() for record in caplog.records)
+
+
+def test_first_models_after_idle_run_startup_healthchecks() -> None:
+    client = _ModelsClient()
+    loop = _sync_loop(client, [])
+    loop._sync_workers()
+    calls: list[bool] = []
+    loop.run_startup_healthchecks = lambda *, show_commands=False, force=False: calls.append(show_commands)
+
+    client.models = [_model("added")]
+    loop._sync_workers()
+
+    assert calls == [False]
+    assert [model.name for model in loop.config.workers] == ["added"]

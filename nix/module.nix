@@ -442,8 +442,8 @@ in
       ];
 
       warnings = optional (cfg.dispatcher.enable && cfg.dispatcher.workers == [ ]) ''
-        services.cairn.dispatcher.workers is empty. The dispatcher needs models in the database:
-        either add seed workers here or create them on the Models page before it starts.
+        services.cairn.dispatcher.workers is empty. The dispatcher will idle until models exist:
+        either add seed workers here or create them on the Models page.
       '';
 
       users.users = optionalAttrs (cfg.user == "cairn") {

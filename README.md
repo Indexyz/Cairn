@@ -193,6 +193,8 @@ The worker/model list lives in the server database and is edited from the **Mode
 
 `workers` in `dispatch.yaml` is a **seed only**: it is written into an empty database once, on dispatcher startup. After that the database wins, and entries added or removed in the UI are what the dispatcher uses. `common_env` in `dispatch.yaml` is still merged into every model's env. Concurrency caps (`runtime.max_workers`, `max_running_projects`, `max_project_workers`) and `runtime.interval` still come from the config file and need a restart.
 
+An empty model list is a normal state: the dispatcher logs a warning and idles without dispatching, then resumes as soon as a model is added. You can therefore start the dispatcher first and configure models from the Models page.
+
 API probe keys are stored as plain text in the database.
 
 ### Local mode (no Docker)

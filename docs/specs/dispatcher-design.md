@@ -923,6 +923,8 @@ codex exec resume "{session}" --dangerously-bypass-approvals-and-sandbox --model
 
 Worker 模型列表的唯一权威来源是服务端数据库（`GET/PUT /models`），`dispatch.yaml` 里的 `workers` 只在数据库为空时被一次性 seed；之后每次调度轮开始前 dispatcher 都会重新拉取，变更下一轮生效。`common_env` 仍会对每个模型生效。并发上限、tick 间隔等运行参数仍来自配置文件，需要重启。
 
+模型列表为空不是错误：dispatcher 会告警一次并空转（不派发任何任务，也不再请求项目详情），等到 UI 里加入模型后自动恢复。
+
 | 字段 | 必填 | 含义 |
 | --- | --- | --- |
 | `name` | 是 | Worker 静态标识；协议写回时使用这个值作为 `creator` 或 `worker` |

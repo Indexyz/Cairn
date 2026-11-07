@@ -140,13 +140,22 @@ class DispatcherLoop:
                 models = self.client.replace_models(self.config.workers)
                 LOG.info("seeded %d worker model(s) from %s", len(models), self.config_path)
         except requests.RequestException as exc:
-            if not self.config.workers:
-                raise RuntimeError(f"failed to load worker models: {exc}") from exc
             LOG.warning("failed to reload worker models, keeping previous set error=%s", exc)
             return
 
         if not models:
-            raise RuntimeError("no worker models configured: add models in the UI or in dispatch.yaml")
+            # An empty model list is a valid state: the UI owns it. Keep the loop alive and
+            # pick models up as soon as they are added, instead of exiting.
+            self.config.workers = []
+            self.worker_unhealthy_until.clear()
+            self.worker_rejected_until.clear()
+            self._log_changed(
+                "workers/idle",
+                logging.WARNING,
+                "no worker models configured, idling until models are added in the UI or in dispatch.yaml",
+            )
+            return
+        self._clear_log_state("workers/idle")
 
         workers = [
             worker.model_copy(update={"env": {**self.config.common_env, **worker.env}})
@@ -165,15 +174,19 @@ class DispatcherLoop:
         LOG.info("worker models reloaded count=%d names=%s", len(workers), [w.name for w in workers])
         self.worker_unhealthy_until.clear()
         self.worker_rejected_until.clear()
-        if self._startup_healthchecks_checked:
-            self._startup_healthchecks_checked = False
-            try:
-                self.run_startup_healthchecks()
-            except RuntimeError as exc:
-                LOG.error("worker model healthcheck failed error=%s", exc)
+        # Covers both a hot reload and the first models arriving after an idle start.
+        self._startup_healthchecks_checked = False
+        try:
+            self.run_startup_healthchecks()
+        except RuntimeError as exc:
+            LOG.error("worker model healthcheck failed error=%s", exc)
 
     def run_startup_healthchecks(self, *, show_commands: bool = False, force: bool = False) -> None:
         if self._startup_healthchecks_checked:
+            return
+        if not self.config.workers:
+            # Leave the flag unset so the check runs once models show up.
+            LOG.warning("skip worker healthchecks because no worker models are configured")
             return
         if self.config.runtime.execution == "local":
             self._run_local_binary_check()
@@ -246,6 +259,13 @@ class DispatcherLoop:
         return path, result.returncode == 0
 
     def _dispatch_available(self, summaries: list[ProjectSummary]) -> None:
+        if not self.config.workers:
+            self._log_changed(
+                "dispatch/global",
+                logging.INFO,
+                "skip dispatch because no worker models are configured",
+            )
+            return
         if len(self.futures) >= self.config.runtime.max_workers:
             self._log_changed(
                 "dispatch/global",
