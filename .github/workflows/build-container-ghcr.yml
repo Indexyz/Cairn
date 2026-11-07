@@ -11,16 +11,29 @@ on:
 permissions:
   packages: write
 
+concurrency:
+  group: container-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  docker:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Native runners per architecture: no QEMU emulation.
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            suffix: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
+
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -32,12 +45,59 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push by digest
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ./container
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/cairn-worker-container:latest
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/cairn-worker-container:buildcache
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/cairn-worker-container:buildcache,mode=max
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=ghcr.io/${{ github.repository_owner }}/cairn-worker-container,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/cairn-worker-container:buildcache-${{ matrix.suffix }}
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/cairn-worker-container:buildcache-${{ matrix.suffix }},mode=max
+
+      - name: Export digest
+        run: |
+          mkdir -p "${{ runner.temp }}/digests"
+          digest="${{ steps.build.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.suffix }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    runs-on: ubuntu-24.04
+    needs: build
+
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create manifest list and push
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          docker buildx imagetools create \
+            --tag ghcr.io/${{ github.repository_owner }}/cairn-worker-container:latest \
+            $(printf 'ghcr.io/${{ github.repository_owner }}/cairn-worker-container@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/cairn-worker-container:latest
