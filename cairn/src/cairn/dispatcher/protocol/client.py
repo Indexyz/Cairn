@@ -10,7 +10,7 @@ import requests
 from requests.adapters import HTTPAdapter
 
 from cairn.dispatcher.config import WorkerConfig
-from cairn.server.models import Intent, ProjectDetail, ProjectSummary, Settings
+from cairn.server.models import Intent, LoadSnapshot, ProjectDetail, ProjectSummary, Settings
 
 LOG = logging.getLogger(__name__)
 
@@ -44,14 +44,19 @@ class ApiResult:
 
 
 class CairnClient:
-    def __init__(self, base_url: str, timeout: float = 10.0):
+    def __init__(self, base_url: str, timeout: float = 10.0, instance_id: str | None = None):
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
+        self._instance_id = instance_id
         self._summary_adapter = TypeAdapter(list[ProjectSummary])
         self._model_adapter = TypeAdapter(list[WorkerModelView])
         self._local = threading.local()
         self._sessions: dict[int, requests.Session] = {}
         self._sessions_lock = threading.Lock()
+
+    def _who(self, worker: str) -> str:
+        """Qualify a model name with this dispatcher's instance so leases stay distinct."""
+        return f"{worker}@{self._instance_id}" if self._instance_id else worker
 
     def close(self) -> None:
         with self._sessions_lock:
@@ -97,9 +102,10 @@ class CairnClient:
         response.raise_for_status()
         return self._model_adapter.validate_python(response.json())
 
-    def report_model_usage(self, counts: dict[str, int]) -> ApiResult:
-        usage = [{"name": name, "used": used} for name, used in counts.items()]
-        return self._request_json("PUT", "/models/usage", json={"usage": usage})
+    def get_load(self) -> LoadSnapshot:
+        response = self._session().get(self._url("/load"), timeout=self._timeout)
+        response.raise_for_status()
+        return LoadSnapshot.model_validate(response.json())
 
     def export_project(self, project_id: str) -> str:
         response = self._session().get(
@@ -114,49 +120,49 @@ class CairnClient:
         return self._request_json(
             "POST",
             f"/projects/{project_id}/intents/{intent_id}/heartbeat",
-            json={"worker": worker},
+            json={"worker": self._who(worker)},
         )
 
     def claim_reason(self, project_id: str, worker: str, trigger: str) -> ApiResult:
         return self._request_json(
             "POST",
             f"/projects/{project_id}/reason/claim",
-            json={"worker": worker, "trigger": trigger},
+            json={"worker": self._who(worker), "trigger": trigger},
         )
 
     def reason_heartbeat(self, project_id: str, worker: str) -> ApiResult:
         return self._request_json(
             "POST",
             f"/projects/{project_id}/reason/heartbeat",
-            json={"worker": worker},
+            json={"worker": self._who(worker)},
         )
 
     def release_reason(self, project_id: str, worker: str) -> ApiResult:
         return self._request_json(
             "POST",
             f"/projects/{project_id}/reason/release",
-            json={"worker": worker},
+            json={"worker": self._who(worker)},
         )
 
     def release(self, project_id: str, intent_id: str, worker: str) -> ApiResult:
         return self._request_json(
             "POST",
             f"/projects/{project_id}/intents/{intent_id}/release",
-            json={"worker": worker},
+            json={"worker": self._who(worker)},
         )
 
     def conclude(self, project_id: str, intent_id: str, worker: str, description: str) -> ApiResult:
         return self._request_json(
             "POST",
             f"/projects/{project_id}/intents/{intent_id}/conclude",
-            json={"worker": worker, "description": description},
+            json={"worker": self._who(worker), "description": description},
         )
 
     def complete(self, project_id: str, from_ids: list[str], description: str, worker: str) -> ApiResult:
         return self._request_json(
             "POST",
             f"/projects/{project_id}/complete",
-            json={"from": from_ids, "description": description, "worker": worker},
+            json={"from": from_ids, "description": description, "worker": self._who(worker)},
         )
 
     def create_intent(self, project_id: str, from_ids: list[str], description: str, creator: str) -> ApiResult:

@@ -5,7 +5,41 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException
 
-from cairn.server.models import Intent, ProjectMeta, ProjectReason
+from cairn.server.models import Intent, LoadSnapshot, ProjectMeta, ProjectReason
+
+def worker_model_name(worker: str | None) -> str | None:
+    """Dispatcher identities are `model@instance`; humans use a bare name."""
+    if worker is None:
+        return None
+    return worker.split("@", 1)[0]
+
+
+def build_load_snapshot(conn: sqlite3.Connection) -> LoadSnapshot:
+    """Count every live lease so several dispatchers can share one global budget."""
+    expire_workers(conn)
+    expire_reason_leases(conn)
+    claimed = conn.execute(
+        "SELECT project_id, worker FROM intents WHERE concluded_at IS NULL AND worker IS NOT NULL"
+    ).fetchall()
+    reasoning = conn.execute(
+        "SELECT id AS project_id, reason_worker AS worker FROM projects WHERE reason_worker IS NOT NULL"
+    ).fetchall()
+
+    projects: dict[str, int] = {}
+    workers: dict[str, int] = {}
+    for row in [*claimed, *reasoning]:
+        projects[row["project_id"]] = projects.get(row["project_id"], 0) + 1
+        model = worker_model_name(row["worker"])
+        if model is not None:
+            workers[model] = workers.get(model, 0) + 1
+
+    return LoadSnapshot(
+        running_tasks=len(claimed) + len(reasoning),
+        running_projects=len(projects),
+        projects=projects,
+        workers=workers,
+    )
+
 
 def utcnow() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

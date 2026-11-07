@@ -10,17 +10,8 @@ from cairn.dispatcher.config import WorkerConfig
 class WorkerModel(WorkerConfig):
     """Worker model entry persisted in the database."""
 
-    # Live value reported by the dispatcher; never stored in the database.
+    # Live value derived from claimed leases; never stored in the database.
     used: int = 0
-
-
-class ModelUsageEntry(BaseModel):
-    name: str
-    used: int = Field(ge=0)
-
-
-class ModelUsageRequest(BaseModel):
-    usage: list[ModelUsageEntry] = Field(default_factory=list)
 
 
 class ModelTestResult(BaseModel):
@@ -29,6 +20,15 @@ class ModelTestResult(BaseModel):
     detail: str = ""
     endpoint: str
     duration_ms: int
+
+
+class LoadSnapshot(BaseModel):
+    """Global running-task load derived from the database leases."""
+
+    running_tasks: int = 0
+    running_projects: int = 0
+    projects: dict[str, int] = Field(default_factory=dict)
+    workers: dict[str, int] = Field(default_factory=dict)
 
 
 class ReplaceModelsRequest(BaseModel):

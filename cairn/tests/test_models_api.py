@@ -148,40 +148,64 @@ def test_model_test_reports_missing_env(client: TestClient) -> None:
     assert "ANTHROPIC_BASE_URL" in response.json()["detail"]
 
 
-def test_usage_report_is_reflected_in_the_list(client: TestClient) -> None:
+def _create_project(client: TestClient) -> str:
+    response = client.post(
+        "/projects",
+        json={"title": "t", "origin": "o", "goal": "g"},
+    )
+    assert response.status_code == 201
+    return response.json()["project"]["id"]
+
+
+def _claimed_intent(client: TestClient, worker: str) -> None:
+    project_id = _create_project(client)
+    response = client.post(
+        f"/projects/{project_id}/intents",
+        json={"from": ["origin"], "description": "busy", "creator": worker, "worker": worker},
+    )
+    assert response.status_code == 201
+
+
+def test_model_usage_is_derived_from_live_leases(client: TestClient) -> None:
     client.post("/models", json=_model("busy"))
     client.post("/models", json=_model("idle"))
+    _claimed_intent(client, "busy@inst1")
 
-    response = client.put("/models/usage", json={"usage": [{"name": "busy", "used": 2}]})
+    usage = {item["name"]: item["used"] for item in client.get("/models").json()}
 
-    assert response.status_code == 200
-    usage = {item["name"]: item["used"] for item in response.json()}
-    assert usage == {"busy": 2, "idle": 0}
-    assert {item["name"]: item["used"] for item in client.get("/models").json()} == usage
+    assert usage == {"busy": 1, "idle": 0}
 
 
-def test_usage_expires_and_is_dropped_with_the_model(client: TestClient, monkeypatch) -> None:
-    from cairn.server.routers import models as models_router
+def test_model_usage_drops_with_the_lease_and_the_model(client: TestClient) -> None:
+    from cairn.server import db
 
     client.post("/models", json=_model("gone"))
-    client.put("/models/usage", json={"usage": [{"name": "gone", "used": 5}]})
-    assert models_router._usage_for("gone") == 5
+    project_id = _create_project(client)
+    client.post(
+        f"/projects/{project_id}/intents",
+        json={"from": ["origin"], "description": "busy", "creator": "gone@inst1", "worker": "gone@inst1"},
+    )
+    assert client.get("/models").json()[0]["used"] == 1
 
-    models_router._USAGE["gone"] = (5, 0.0)
-    assert models_router._usage_for("gone") == 0
+    with db.get_conn() as conn:
+        conn.execute("UPDATE intents SET last_heartbeat_at = '2000-01-01T00:00:00Z'")
+
+    assert client.get("/models").json()[0]["used"] == 0
 
     client.delete("/models/gone")
-    assert "gone" not in models_router._USAGE
+    assert client.get("/models").json() == []
 
 
-def test_usage_report_accepts_an_empty_payload(client: TestClient) -> None:
-    client.post("/models", json=_model("quiet"))
-    client.put("/models/usage", json={"usage": [{"name": "quiet", "used": 3}]})
+def test_load_snapshot_counts_tasks_projects_and_workers(client: TestClient) -> None:
+    client.post("/models", json=_model("busy"))
+    _claimed_intent(client, "busy@inst1")
 
-    response = client.put("/models/usage", json={"usage": []})
+    load = client.get("/load").json()
 
-    assert response.status_code == 200
-    assert [item["used"] for item in response.json()] == [0]
+    assert load["running_tasks"] == 1
+    assert load["running_projects"] == 1
+    assert load["workers"] == {"busy": 1}
+    assert list(load["projects"].values()) == [1]
 
 
 class _TestClientSession:
@@ -221,7 +245,7 @@ def test_dispatcher_client_parses_model_responses_with_read_only_fields(client: 
     from cairn.dispatcher.protocol.client import WorkerModelView
 
     client.post("/models", json=_model("parsed"))
-    client.put("/models/usage", json={"usage": [{"name": "parsed", "used": 1}]})
+    _claimed_intent(client, "parsed@inst1")
 
     transport, _ = _dispatcher_client(client)
 
@@ -245,3 +269,14 @@ def test_dispatcher_client_replace_models_round_trips_without_leaking_used(clien
     assert [model.name for model in replaced] == ["kept"]
     sent = session.calls[-1]["json"]["models"]
     assert all("used" not in entry for entry in sent)
+
+
+def test_dispatcher_client_reads_the_load_snapshot(client: TestClient) -> None:
+    client.post("/models", json=_model("m"))
+    _claimed_intent(client, "m@inst1")
+    transport, _ = _dispatcher_client(client)
+
+    load = transport.get_load()
+
+    assert load.running_tasks == 1
+    assert load.workers == {"m": 1}

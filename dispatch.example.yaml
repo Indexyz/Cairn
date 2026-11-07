@@ -1,6 +1,9 @@
 # Cairn server API endpoint.
 server: "http://cairn-server:8000"
 
+# Identity of this dispatcher; leases are written as `model@instance`.
+# Set CAIRN_INSTANCE_ID in the environment per host so instances stay distinct.
+
 # Shared environment variables merged into every worker.
 common_env:
   TSEC_SERVER_HOST: "<SERVER_HOST>:8000"

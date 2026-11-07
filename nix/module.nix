@@ -218,6 +218,16 @@ in
         description = "API base URL; defaults to the local server instance.";
       };
 
+      instanceId = mkOption {
+        type = types.str;
+        default = config.networking.hostName;
+        defaultText = literalExpression "config.networking.hostName";
+        description = ''
+          Identity of this dispatcher. Leases are written as `model@instanceId`, so every
+          dispatcher sharing one server needs its own value.
+        '';
+      };
+
       execution = mkOption {
         type = types.enum [
           "container"
@@ -504,7 +514,10 @@ in
         requires = optional (useDocker && config.virtualisation.docker.enable) "docker.service";
 
         path = cfg.dispatcher.extraPackages;
-        environment.HOME = cfg.stateDir;
+        environment = {
+          HOME = cfg.stateDir;
+          CAIRN_INSTANCE_ID = cfg.dispatcher.instanceId;
+        };
 
         serviceConfig = hardening // {
           Type = "simple";

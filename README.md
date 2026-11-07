@@ -201,9 +201,19 @@ Each row on the Models page has a test button that runs the dispatcher's own wor
 
 The UI ships English, Simplified Chinese and Japanese. Switch language in the sidebar footer or in Settings; the choice and the date formats follow it and are stored per browser.
 
-The concurrency column shows slots in use against the cap, taken from the running-task counts the dispatcher reports every tick; it turns amber when a model is saturated.
+The concurrency column shows slots in use against the cap, derived from the live leases; it turns amber when a model is saturated.
 
 API probe keys are stored as plain text in the database.
+
+### Several dispatchers
+
+More than one dispatcher can share one server. Each instance gets an identity — `CAIRN_INSTANCE_ID`, or a random suffix when unset — and writes leases as `model@instance`, so two instances never treat the same model as the same owner: the loser of a claim gets `409` and retries on a later tick.
+
+- concurrency caps are enforced against the global lease count (`GET /load`), not per process
+- worker containers are named `cairn-dispatch-<instance>-<project>`, so instances sharing a Docker host do not reuse or stop each other's containers
+- in local mode the workspace directory stays per project (`<workspace_root>/<project_id>`) and is shared between instances
+
+Set a stable `CAIRN_INSTANCE_ID` per host so a restarted dispatcher keeps its identity. The NixOS module defaults it to the hostname.
 
 ### Local mode (no Docker)
 

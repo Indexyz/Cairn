@@ -143,6 +143,8 @@ concluded_at    # 结论时间，null 表示尚无结论
 
 请求体里的文本字段（如 `title`、`content`、`description`、`creator`、`worker`、`trigger`）以及 `from` 中的 Fact id，服务端都会先做首尾空白裁剪；裁剪后若为空，则返回 `422`。
 
+dispatcher 写入的 `worker` 除人工外均带实例后缀，形如 `claudecode_deepseek-v4-pro@node-a`；同一个 worker 名在不同实例上因此是不同 owner，租约能互相冲突。`proj_001` 这类实例内的区分仍靠 `project_id`。人工请求可以继续用裸名。
+
 如果消费者采用 `bootstrap` 约定，常见做法是使用固定 `creator`，例如 `dispatcher.bootstrap`，以便在图上与普通探索 intent 清晰区分；这只是消费者约定，不是服务端约束。
 
 **worker 字段语义：**
@@ -187,7 +189,7 @@ env           # 环境变量对象，字符串键值；容器模式下必须包�
 
 服务端按 `priority` 升序、`name` 升序返回。
 
-响应中的 `used` 是 dispatcher 上报的实时运行数（只读，不落库，30 秒未更新自动归零）；新建、更新、删除的请求体可以不带该字段。
+响应中的 `used` 由未过期的租约推导（只读，不落库）；新建、更新、删除的请求体可以不带该字段。
 
 ---
 
@@ -266,14 +268,19 @@ Body：
 
 更新单个模型，允许改名（`body.name` 与路径不同，冲突时返回 `409`）。模型不存在返回 `404`。
 
-#### PUT /models/usage
+#### GET /load
 
-由 dispatcher 每个调度轮调用，上报每个模型当前的运行中任务数；未出现的模型计为 0。数值只在内存保留，超过 30 秒未上报即过期。
+返回全局在跑负载，由未过期的租约推导（过期租约先清理）。dispatcher 每轮调度前读取，多个 dispatcher 据此共享同一份配额。
 
-Body：
+响应：
 
 ```json
-{ "usage": [ { "name": "claudecode_deepseek-v4-pro", "used": 2 } ] }
+{
+  "running_tasks": 2,
+  "running_projects": 1,
+  "projects": { "proj_001": 2 },
+  "workers": { "claudecode_deepseek-v4-pro": 2 }
+}
 ```
 
 #### POST /models/{name}/test

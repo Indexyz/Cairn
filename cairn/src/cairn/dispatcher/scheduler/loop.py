@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import subprocess
 import time
+import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,13 +24,21 @@ from cairn.dispatcher.workers.registry import get_driver
 from cairn.dispatcher.tasks.bootstrap import run_bootstrap_task
 from cairn.dispatcher.tasks.explore import run_explore_task
 from cairn.dispatcher.tasks.reason import run_reason_task
-from cairn.server.models import Intent, ProjectDetail, ProjectSummary
+from cairn.server.models import Intent, LoadSnapshot, ProjectDetail, ProjectSummary
 
 LOG = logging.getLogger(__name__)
+INSTANCE_ID_ENV = "CAIRN_INSTANCE_ID"
+INSTANCE_ID_ENV = "CAIRN_INSTANCE_ID"
 UNHEALTHY_RETRY_AFTER_SECONDS = 5
 REJECTED_RETRY_AFTER_SECONDS = 5
 BOOTSTRAP_INTENT_DESCRIPTION = "bootstrap"
 BOOTSTRAP_INTENT_CREATOR = "dispatcher.bootstrap"
+
+
+def resolve_instance_id() -> str:
+    """Identity of this dispatcher; leases are `model@instance` so instances stay distinct."""
+    configured = os.environ.get(INSTANCE_ID_ENV, "").strip()
+    return configured or uuid.uuid4().hex[:8]
 
 
 @dataclass(slots=True)
@@ -44,12 +54,14 @@ class DispatcherLoop:
     def __init__(self, config_path: Path):
         self.config_path = config_path
         self.config = DispatchConfig.load(config_path)
-        self.client = CairnClient(self.config.server)
+        self.instance_id = resolve_instance_id()
+        LOG.info("dispatcher instance id=%s", self.instance_id)
+        self.client = CairnClient(self.config.server, instance_id=self.instance_id)
         if self.config.runtime.execution == "local":
             self.container_manager = LocalBackend(self.config.local or LocalConfig())
         else:
             assert self.config.container is not None
-            self.container_manager = ContainerManager(self.config.container)
+            self.container_manager = ContainerManager(self.config.container, self.instance_id)
         self.executor = ThreadPoolExecutor(max_workers=self.config.runtime.max_workers)
         self.cleanup_executor = ThreadPoolExecutor(max_workers=max(1, min(8, self.config.runtime.max_workers)))
         self.futures: dict[Future[str], RunningTask] = {}
@@ -58,6 +70,7 @@ class DispatcherLoop:
         self.runtime_project_ids: set[str] = set()
         self.worker_unhealthy_until: dict[str, float] = {}
         self.worker_rejected_until: dict[tuple[str, str, str], float] = {}
+        self.global_load = LoadSnapshot()
         self._log_state: dict[str, tuple[int, str, tuple[object, ...]]] = {}
         self._cleanup_pending: set[str] = set()
         self._inactive_cleanup_done: dict[str, str] = {}
@@ -89,7 +102,7 @@ class DispatcherLoop:
                         self._settings_checked = True
                     self._reap_futures()
                     self._reap_cleanup_futures()
-                    self._report_model_usage()
+                    self._refresh_global_load()
                     summaries = self.client.list_projects()
                     self._initialize_reason_checkpoints(summaries)
                     self._refresh_runtime_projects(summaries)
@@ -119,6 +132,28 @@ class DispatcherLoop:
         finally:
             self.close()
 
+    def _refresh_global_load(self) -> None:
+        """Fetch the cluster-wide lease counts so quotas hold across dispatchers."""
+        try:
+            self.global_load = self.client.get_load()
+        except requests.RequestException as exc:
+            LOG.warning("failed to refresh global load error=%s", exc)
+
+    def _global_load(self) -> LoadSnapshot:
+        load = getattr(self, "global_load", None)
+        return load if load is not None else LoadSnapshot()
+
+    def _global_running_tasks(self) -> int:
+        # Local futures can be ahead of the leases they will write, so take the larger.
+        return max(len(self.futures), self._global_load().running_tasks)
+
+    def _global_project_tasks(self, project_id: str) -> int:
+        local = self._project_running_task_count(project_id)
+        return max(local, self._global_load().projects.get(project_id, 0))
+
+    def _global_running_projects(self, summaries: list[ProjectSummary]) -> int:
+        return max(self._running_project_count(summaries), self._global_load().running_projects)
+
     def _worker_signature(self) -> tuple[object, ...]:
         return tuple(
             (
@@ -131,13 +166,6 @@ class DispatcherLoop:
             )
             for worker in self.config.workers
         )
-
-    def _report_model_usage(self) -> None:
-        """Tell the server how many tasks each worker currently runs, for the Models page."""
-        counts: dict[str, int] = {}
-        for task in self.futures.values():
-            counts[task.worker_name] = counts.get(task.worker_name, 0) + 1
-        self.client.report_model_usage(counts)
 
     def _sync_workers(self, *, seed: bool = False) -> None:
         """Reload the authoritative worker model list from the server."""
@@ -274,12 +302,12 @@ class DispatcherLoop:
                 "skip dispatch because no worker models are configured",
             )
             return
-        if len(self.futures) >= self.config.runtime.max_workers:
+        if self._global_running_tasks() >= self.config.runtime.max_workers:
             self._log_changed(
                 "dispatch/global",
                 logging.INFO,
                 "skip dispatch because max_workers reached running_tasks=%s",
-                len(self.futures),
+                self._global_running_tasks(),
             )
             return
         active = [summary for summary in summaries if summary.status == "active"]
@@ -295,30 +323,30 @@ class DispatcherLoop:
         )
 
         dispatched = True
-        while dispatched and len(self.futures) < self.config.runtime.max_workers:
+        while dispatched and self._global_running_tasks() < self.config.runtime.max_workers:
             dispatched = False
             for summary in running_projects:
                 if self._try_dispatch_project(summary):
                     dispatched = True
-                    if len(self.futures) >= self.config.runtime.max_workers:
+                    if self._global_running_tasks() >= self.config.runtime.max_workers:
                         return
             if dispatched:
                 continue
-            if self._running_project_count(active) >= self.config.runtime.max_running_projects:
+            if self._global_running_projects(active) >= self.config.runtime.max_running_projects:
                 self._log_changed(
                     "dispatch/idle-limit",
                     logging.INFO,
                     "skip idle project dispatch because max_running_projects reached running_projects=%s",
-                    self._running_project_count(active),
+                    self._global_running_projects(active),
                 )
                 return
             for summary in idle_projects:
-                if self._running_project_count(active) >= self.config.runtime.max_running_projects:
+                if self._global_running_projects(active) >= self.config.runtime.max_running_projects:
                     self._log_changed(
                         "dispatch/idle-limit",
                         logging.INFO,
                         "stop idle project dispatch because max_running_projects reached running_projects=%s",
-                        self._running_project_count(active),
+                        self._global_running_projects(active),
                     )
                     return
                 if self._try_dispatch_project(summary):
@@ -348,7 +376,7 @@ class DispatcherLoop:
                 container_name,
             )
             return False
-        if self._project_running_task_count(summary.id) >= self.config.runtime.max_project_workers:
+        if self._global_project_tasks(summary.id) >= self.config.runtime.max_project_workers:
             self._log_changed(
                 f"{skip_scope}:max_project_workers",
                 logging.INFO,
@@ -641,7 +669,7 @@ class DispatcherLoop:
             if task_type not in worker.task_types:
                 blocked_task_type.append(worker.name)
                 continue
-            running = running_counts.get(worker.name, 0)
+            running = max(running_counts.get(worker.name, 0), self._global_load().workers.get(worker.name, 0))
             if running >= worker.max_running:
                 blocked_busy.append(f"{worker.name}({running}/{worker.max_running})")
                 continue

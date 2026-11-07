@@ -6,7 +6,7 @@ from cairn.dispatcher.config import DispatchConfig
 from cairn.dispatcher.protocol.client import ApiResult
 from cairn.dispatcher.workers.base import DriverResult
 from cairn.dispatcher.workers.health import HealthResult
-from cairn.server.models import Fact, Hint, Intent, ProjectDetail, ProjectMeta
+from cairn.server.models import Fact, Hint, Intent, LoadSnapshot, ProjectDetail, ProjectMeta
 
 
 def make_config() -> DispatchConfig:
@@ -135,6 +135,9 @@ class FakeClient:
     def release(self, project_id: str, intent_id: str, worker: str) -> ApiResult:
         self.released.append((project_id, intent_id, worker))
         return ApiResult(200, {})
+
+    def get_load(self) -> LoadSnapshot:
+        return LoadSnapshot()
 
     def release_reason(self, project_id: str, worker: str) -> ApiResult:
         self.released_reasons.append((project_id, worker))

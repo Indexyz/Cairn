@@ -925,6 +925,14 @@ Worker 模型列表的唯一权威来源是服务端数据库（`GET/PUT /models
 
 模型列表为空不是错误：dispatcher 会告警一次并空转（不派发任何任务，也不再请求项目详情），等到 UI 里加入模型后自动恢复。
 
+#### 多实例
+
+dispatcher 启动时确定自己的实例标识（`CAIRN_INSTANCE_ID`，未设置则随机），写入协议的 `worker` 形如 `model@instance`。同名模型在不同实例上因此是不同 owner，服务端租约（`409`）能正确互斥，失败方在后续轮次重试。
+
+全局配额不再只看本地 futures，而是每轮 `GET /load` 得到的全局在跑数取较大值：`runtime.max_workers`、`runtime.max_running_projects`、`runtime.max_project_workers` 和每个 `workers[].max_running` 都按全局计算。两实例仍有极小的同时通过窗口（软上限）。
+
+项目容器名带实例：`cairn-dispatch-<instance>-<project>`，共享 Docker 主机时不会互相复用或误停；`managed_container_names` 仍按 `cairn-dispatch-` 前缀扫描所有实例。local 模式的工作目录仍是 `<workspace_root>/<project_id>`，实例间共用。
+
 | 字段 | 必填 | 含义 |
 | --- | --- | --- |
 | `name` | 是 | Worker 静态标识；协议写回时使用这个值作为 `creator` 或 `worker` |

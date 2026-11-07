@@ -9,36 +9,14 @@ from fastapi import APIRouter, HTTPException, Query
 from cairn.dispatcher.workers.registry import get_driver
 from cairn.server.db import get_conn
 from cairn.server.models import (
+    LoadSnapshot,
     ModelTestResult,
-    ModelUsageRequest,
     ReplaceModelsRequest,
     WorkerModel,
 )
-from cairn.server.services import utcnow
+from cairn.server.services import build_load_snapshot, utcnow
 
 router = APIRouter(tags=["models"])
-
-# Live per-model running counts reported by the dispatcher. In-memory on purpose: the
-# dispatcher re-reports on every scheduling tick and the values expire on their own.
-USAGE_TTL_SECONDS = 30.0
-_USAGE: dict[str, tuple[int, float]] = {}
-
-
-def _record_usage(body: ModelUsageRequest) -> None:
-    now = time.time()
-    _USAGE.clear()
-    for entry in body.usage:
-        _USAGE[entry.name] = (entry.used, now)
-
-
-def _usage_for(name: str) -> int:
-    entry = _USAGE.get(name)
-    if entry is None:
-        return 0
-    used, recorded_at = entry
-    if time.time() - recorded_at > USAGE_TTL_SECONDS:
-        return 0
-    return used
 
 
 def _row_to_model(row: sqlite3.Row) -> WorkerModel:
@@ -54,8 +32,9 @@ def _row_to_model(row: sqlite3.Row) -> WorkerModel:
 
 def _list_models(conn: sqlite3.Connection) -> list[WorkerModel]:
     rows = conn.execute("SELECT * FROM models ORDER BY priority, name").fetchall()
+    load = build_load_snapshot(conn)
     return [
-        model.model_copy(update={"used": _usage_for(model.name)}) if (model := _row_to_model(row)) else model
+        _row_to_model(row).model_copy(update={"used": load.workers.get(row["name"], 0)})
         for row in rows
     ]
 
@@ -90,7 +69,7 @@ def create_model(body: WorkerModel):
         if existing is not None:
             raise HTTPException(409, f"model {body.name} already exists")
         _insert_model(conn, body, utcnow())
-        return body.model_copy(update={"used": _usage_for(body.name)})
+        return body
 
 
 @router.put("/models", response_model=list[WorkerModel])
@@ -128,12 +107,11 @@ def replace_models(body: ReplaceModelsRequest):
         return _list_models(conn)
 
 
-@router.put("/models/usage", response_model=list[WorkerModel])
-def report_usage(body: ModelUsageRequest):
-    """Called by the dispatcher every tick with its live running counts."""
-    _record_usage(body)
+@router.get("/load", response_model=LoadSnapshot)
+def get_load():
+    """Live global load; dispatchers consult it before dispatching to share a budget."""
     with get_conn() as conn:
-        return _list_models(conn)
+        return build_load_snapshot(conn)
 
 
 @router.put("/models/{name}", response_model=WorkerModel)
@@ -160,7 +138,7 @@ def update_model(name: str, body: WorkerModel):
                 name,
             ),
         )
-        return body.model_copy(update={"used": _usage_for(body.name)})
+        return body
 
 
 def _require_model(conn: sqlite3.Connection, name: str) -> WorkerModel:
@@ -175,7 +153,6 @@ def delete_model(name: str):
     with get_conn() as conn:
         _require_model(conn, name)
         conn.execute("DELETE FROM models WHERE name = ?", (name,))
-    _USAGE.pop(name, None)
 
 
 @router.post("/models/{name}/test", response_model=ModelTestResult)

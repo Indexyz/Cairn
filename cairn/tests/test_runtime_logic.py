@@ -163,3 +163,19 @@ def test_ensure_running_leaves_platform_unset_for_multiarch_auto_detection() -> 
     manager.ensure_running("proj_001")
 
     assert manager._client.containers.kwargs["platform"] is None
+
+
+def test_container_names_are_instance_scoped() -> None:
+    manager = _manager()
+    manager._instance_id = "node-a"
+
+    assert manager.container_name("proj_001") == "cairn-dispatch-node-a-proj_001"
+    assert manager.container_name("proj/1") == "cairn-dispatch-node-a-proj-1"
+    assert manager.container_name("proj_001").startswith(ContainerManager._PREFIX)
+
+
+def test_container_names_stay_unscoped_without_an_instance() -> None:
+    manager = _manager()
+    manager._instance_id = None
+
+    assert manager.container_name("proj_001") == "cairn-dispatch-proj_001"

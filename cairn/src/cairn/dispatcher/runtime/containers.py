@@ -19,8 +19,9 @@ LOG = logging.getLogger(__name__)
 class ContainerManager:
     _PREFIX = "cairn-dispatch-"
 
-    def __init__(self, config: ContainerConfig):
+    def __init__(self, config: ContainerConfig, instance_id: str | None = None):
         self._config = config
+        self._instance_id = instance_id
         self._client = docker.from_env()
         self._ensure_running_locks: dict[str, threading.Lock] = {}
         self._ensure_running_locks_guard = threading.Lock()
@@ -29,7 +30,12 @@ class ContainerManager:
         self._client.close()
 
     def container_name(self, project_id: str) -> str:
+        # Instance-scoped, so dispatchers sharing a Docker host never touch each other's
+        # containers; `managed_container_names` still matches every instance by prefix.
         sanitized = project_id.replace("/", "-")
+        instance_id = getattr(self, "_instance_id", None)
+        if instance_id:
+            return f"{self._PREFIX}{instance_id}-{sanitized}"
         return f"{self._PREFIX}{sanitized}"
 
     def ensure_running(self, project_id: str) -> str:

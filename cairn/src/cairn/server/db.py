@@ -117,10 +117,14 @@ def _ensure_project_columns(conn: sqlite3.Connection) -> None:
 @contextmanager
 def get_conn() -> Generator[sqlite3.Connection, None, None]:
     assert _db_path is not None
-    conn = sqlite3.connect(str(_db_path))
+    # Autocommit mode with an explicit write lock up front: concurrent dispatchers must
+    # serialize instead of racing a deferred transaction into "database is locked".
+    conn = sqlite3.connect(str(_db_path), timeout=15.0, isolation_level=None)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout = 15000")
+    conn.execute("BEGIN IMMEDIATE")
     try:
         yield conn
         conn.commit()

@@ -11,7 +11,7 @@ from cairn.dispatcher.models import ReasonCheckpoint, RunningTask
 from cairn.dispatcher.runtime.cancellation import TaskCancellation
 from cairn.dispatcher.scheduler.loop import DispatcherLoop
 from cairn.dispatcher.scheduler.worker_select import choose_worker
-from cairn.server.models import Fact, ProjectSummary
+from cairn.server.models import Fact, LoadSnapshot, ProjectSummary
 
 from conftest import make_config, make_intent, make_project
 
@@ -27,6 +27,7 @@ def _loop() -> DispatcherLoop:
     loop.worker_rejected_until = {}
     loop._log_state = {}
     loop.project_cursor = 0
+    loop.global_load = LoadSnapshot()
     return loop
 
 
@@ -505,25 +506,149 @@ def test_first_models_after_idle_run_startup_healthchecks() -> None:
     assert [model.name for model in loop.config.workers] == ["added"]
 
 
-def test_model_usage_reports_running_tasks_per_worker() -> None:
+def test_refresh_global_load_stores_the_snapshot() -> None:
     loop = _loop()
-    loop.futures = {}
-
-    class _Task:
-        def __init__(self, worker: str) -> None:
-            self.worker_name = worker
-
-    for worker in ["a", "b", "a"]:
-        loop.futures[object()] = _Task(worker)
-
-    captured: list[dict[str, int]] = []
+    snapshot = LoadSnapshot(running_tasks=2, running_projects=1, projects={"p": 2}, workers={"a": 2})
 
     class _Client:
-        def report_model_usage(self, counts):
-            captured.append(counts)
-            return None
+        def get_load(self):
+            return snapshot
 
     loop.client = _Client()
-    loop._report_model_usage()
+    loop._refresh_global_load()
 
-    assert captured == [{"a": 2, "b": 1}]
+    assert loop.global_load == snapshot
+
+
+def test_global_load_raises_the_local_caps() -> None:
+    loop = _loop()
+    loop.futures = {}
+    loop.global_load = LoadSnapshot(running_tasks=3, running_projects=2, projects={"proj_001": 2}, workers={"a": 2})
+
+    assert loop._global_running_tasks() == 3
+    assert loop._global_project_tasks("proj_001") == 2
+    assert loop._global_running_projects([_summary("proj_001", "active")]) == 2
+
+
+def test_instance_id_comes_from_the_environment(monkeypatch) -> None:
+    from cairn.dispatcher.scheduler.loop import resolve_instance_id
+
+    monkeypatch.setenv("CAIRN_INSTANCE_ID", "node-a")
+    assert resolve_instance_id() == "node-a"
+
+    monkeypatch.delenv("CAIRN_INSTANCE_ID")
+    generated = resolve_instance_id()
+    assert generated and generated != resolve_instance_id()
+
+
+def test_client_qualifies_worker_names_with_the_instance() -> None:
+    from cairn.dispatcher.protocol.client import CairnClient
+
+    assert CairnClient("http://x", instance_id="node-a")._who("m") == "m@node-a"
+    assert CairnClient("http://x")._who("m") == "m"
+
+
+def test_dispatch_is_skipped_without_models(caplog) -> None:
+    loop = _sync_loop(_ModelsClient(), [])
+    calls: list[str] = []
+
+    class _Client(_ModelsClient):
+        def get_project(self, project_id: str):
+            calls.append(project_id)
+            return make_project()
+
+    loop.client = _Client()
+
+    with caplog.at_level(logging.INFO, logger="cairn.dispatcher.scheduler.loop"):
+        loop._dispatch_available([_summary("proj_001", "active")])
+
+    assert calls == []
+    assert any("no worker models" in record.getMessage() for record in caplog.records)
+
+
+def test_first_models_after_idle_run_startup_healthchecks() -> None:
+    client = _ModelsClient()
+    loop = _sync_loop(client, [])
+    loop._sync_workers()
+    calls: list[bool] = []
+    loop.run_startup_healthchecks = lambda *, show_commands=False, force=False: calls.append(show_commands)
+
+    client.models = [_model("added")]
+    loop._sync_workers()
+
+    assert calls == [False]
+    assert [model.name for model in loop.config.workers] == ["added"]
+
+
+def test_refresh_global_load_stores_the_snapshot() -> None:
+    loop = _loop()
+    snapshot = LoadSnapshot(running_tasks=2, running_projects=1, projects={"p": 2}, workers={"a": 2})
+
+    class _Client:
+        def get_load(self):
+            return snapshot
+
+    loop.client = _Client()
+    loop._refresh_global_load()
+
+    assert loop.global_load == snapshot
+
+
+def test_global_load_raises_the_local_caps() -> None:
+    loop = _loop()
+    loop.futures = {}
+    loop.global_load = LoadSnapshot(running_tasks=3, running_projects=2, projects={"proj_001": 2}, workers={"a": 2})
+
+    assert loop._global_running_tasks() == 3
+    assert loop._global_project_tasks("proj_001") == 2
+    assert loop._global_running_projects([_summary("proj_001", "active")]) == 2
+
+
+def test_instance_id_comes_from_the_environment(monkeypatch) -> None:
+    from cairn.dispatcher.scheduler.loop import resolve_instance_id
+
+    monkeypatch.setenv("CAIRN_INSTANCE_ID", "node-a")
+    assert resolve_instance_id() == "node-a"
+
+    monkeypatch.delenv("CAIRN_INSTANCE_ID")
+    generated = resolve_instance_id()
+    assert generated and generated != resolve_instance_id()
+
+
+def test_client_qualifies_worker_names_with_the_instance() -> None:
+    from cairn.dispatcher.protocol.client import CairnClient
+
+    assert CairnClient("http://x", instance_id="node-a")._who("m") == "m@node-a"
+    assert CairnClient("http://x")._who("m") == "m"
+
+
+def test_dispatch_is_skipped_without_models(caplog) -> None:
+    loop = _sync_loop(_ModelsClient(), [])
+    calls: list[str] = []
+
+    class _Client(_ModelsClient):
+        def get_project(self, project_id: str):
+            calls.append(project_id)
+            return make_project()
+
+    loop.client = _Client()
+
+    with caplog.at_level(logging.INFO, logger="cairn.dispatcher.scheduler.loop"):
+        loop._dispatch_available([_summary("proj_001", "active")])
+
+    assert calls == []
+    assert any("no worker models" in record.getMessage() for record in caplog.records)
+
+
+def test_first_models_after_idle_run_startup_healthchecks() -> None:
+    client = _ModelsClient()
+    loop = _sync_loop(client, [])
+    loop._sync_workers()
+    calls: list[bool] = []
+    loop.run_startup_healthchecks = lambda *, show_commands=False, force=False: calls.append(show_commands)
+
+    client.models = [_model("added")]
+    loop._sync_workers()
+
+    assert calls == [False]
+    assert [model.name for model in loop.config.workers] == ["added"]
