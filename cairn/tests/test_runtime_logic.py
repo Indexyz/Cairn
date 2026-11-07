@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import threading
 
 from cairn.dispatcher.config import ContainerConfig
 from cairn.dispatcher.protocol.client import ApiResult
@@ -116,3 +117,49 @@ def test_write_text_file_uses_archive_api_and_rejects_false_result() -> None:
         assert "failed to write container file" in str(exc)
     else:
         raise AssertionError("expected failed put_archive result to raise")
+
+
+class _FakeContainers:
+    def __init__(self) -> None:
+        self.kwargs: dict[str, object] = {}
+
+    def run(self, image: str, command: list[str], **kwargs: object) -> object:
+        self.kwargs = {"image": image, "command": command, **kwargs}
+        return object()
+
+
+class _FakeDockerClient:
+    def __init__(self) -> None:
+        self.containers = _FakeContainers()
+
+
+def _creating_manager(platform: str | None) -> ContainerManager:
+    manager = _manager()
+    manager._client = _FakeDockerClient()
+    manager._ensure_running_locks = {}
+    manager._ensure_running_locks_guard = threading.Lock()
+    manager.inspect_state = lambda _name: None
+    manager._config = ContainerConfig(
+        image="image",
+        network_mode="host",
+        completed_action="stop",
+        platform=platform,
+    )
+    return manager
+
+
+def test_ensure_running_passes_configured_platform() -> None:
+    manager = _creating_manager("linux/arm64")
+
+    manager.ensure_running("proj_001")
+
+    assert manager._client.containers.kwargs["platform"] == "linux/arm64"
+    assert manager._client.containers.kwargs["name"] == "cairn-dispatch-proj_001"
+
+
+def test_ensure_running_leaves_platform_unset_for_multiarch_auto_detection() -> None:
+    manager = _creating_manager(None)
+
+    manager.ensure_running("proj_001")
+
+    assert manager._client.containers.kwargs["platform"] is None

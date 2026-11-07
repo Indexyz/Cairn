@@ -1,4 +1,18 @@
-FROM --platform=amd64 kalilinux/kali-rolling:latest
+# syntax=docker/dockerfile:1
+
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS kerbrute
+
+ARG TARGETOS
+ARG TARGETARCH
+
+RUN apk add --no-cache git
+RUN git clone --depth 1 --branch v1.0.3 https://github.com/ropnop/kerbrute.git /src
+WORKDIR /src
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /kerbrute .
+
+FROM kalilinux/kali-rolling:latest
+
+ARG TARGETARCH
 
 RUN apt update && \
     apt -y install kali-linux-headless && \
@@ -20,17 +34,15 @@ RUN sudo apt update && \
     cd /tmp && playwright-cli install
 
 RUN cd /tmp && \
-    wget -q "https://github.com/projectdiscovery/katana/releases/download/v1.5.0/katana_1.5.0_linux_amd64.zip" -O katana.zip && \
-    wget -q "https://github.com/projectdiscovery/nuclei/releases/download/v3.7.1/nuclei_3.7.1_linux_amd64.zip" -O nuclei.zip && \
-    wget -q "https://github.com/hahwul/dalfox/releases/download/v2.12.0/dalfox-linux-amd64.tar.gz" -O dalfox.tar.gz && \
-    wget -q "https://github.com/BishopFox/cloudfox/releases/download/v2.0.1/cloudfox-linux-amd64.zip" -O cloudfox.zip && \
-    wget -q "https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_linux_amd64" -O kerbrute && \
+    wget -q "https://github.com/projectdiscovery/katana/releases/download/v1.5.0/katana_1.5.0_linux_${TARGETARCH}.zip" -O katana.zip && \
+    wget -q "https://github.com/projectdiscovery/nuclei/releases/download/v3.7.1/nuclei_3.7.1_linux_${TARGETARCH}.zip" -O nuclei.zip && \
+    wget -q "https://github.com/hahwul/dalfox/releases/download/v2.12.0/dalfox-linux-${TARGETARCH}.tar.gz" -O dalfox.tar.gz && \
+    wget -q "https://github.com/BishopFox/cloudfox/releases/download/v2.0.1/cloudfox-linux-${TARGETARCH}.zip" -O cloudfox.zip && \
     git clone --depth 1 "https://github.com/projectdiscovery/nuclei-templates.git" /home/kali/.local/nuclei-templates && \
     unzip -q katana.zip katana && sudo mv katana /usr/local/bin/ && \
     unzip -q nuclei.zip nuclei && sudo mv nuclei /usr/local/bin/ && \
-    tar -xzf dalfox.tar.gz && sudo mv dalfox-linux-amd64 /usr/local/bin/dalfox && \
+    tar -xzf dalfox.tar.gz && sudo mv "dalfox-linux-${TARGETARCH}" /usr/local/bin/dalfox && \
     unzip -q cloudfox.zip cloudfox/cloudfox && sudo mv cloudfox/cloudfox /usr/local/bin/ && \
-    sudo cp kerbrute /usr/local/bin/ && \
     nuclei -ut && \
     sudo rm -rf /tmp/*
 
@@ -53,20 +65,29 @@ RUN mkdir -p /home/kali/pocs && cd /home/kali/pocs && \
     git clone --depth=1 https://github.com/Threekiii/Awesome-POC.git && \
     git clone --depth=1 https://github.com/vulhub/vulhub.git
 
-RUN cd /tmp && \
-    wget -q "https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/ripgrep_15.1.0-1_amd64.deb" -O ripgrep.deb && \
-    wget -q "https://github.com/sharkdp/fd/releases/download/v10.4.2/fd_10.4.2_amd64.deb" -O fd.deb && \
-    sudo apt install ./ripgrep.deb ./fd.deb && \
-    sudo rm -rf /tmp/* && \
+RUN sudo apt update && \
+    sudo apt install -y ripgrep fd-find && \
+    sudo ln -sf "$(command -v fdfind)" /usr/local/bin/fd && \
     sudo apt clean && \
-    sudo rm -rf /var/lib/apt/lists/*
-    
+    sudo rm -rf /var/lib/apt/lists/* && \
+    sudo rm -rf /tmp/*    
 RUN pip3 install tccli awscli --break-system-packages && \
     sudo bash -c "$(curl -fsSL https://aliyuncli.alicdn.com/install.sh)"
 
 RUN sudo npm install -g @openai/codex@0.118.0
 RUN sudo npm install -g @anthropic-ai/claude-code@2.1.98
 RUN sudo npm install -g @mariozechner/pi-coding-agent@0.73.0
+
+COPY --from=kerbrute /kerbrute /tmp/kerbrute-built
+
+RUN cd /tmp && \
+    if [ "$TARGETARCH" = "amd64" ]; then \
+        wget -q "https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_linux_amd64" -O kerbrute; \
+    else \
+        cp kerbrute-built kerbrute; \
+    fi && \
+    sudo install -m 0755 kerbrute /usr/local/bin/kerbrute && \
+    rm -f kerbrute kerbrute-built
 
 RUN sudo chmod +x /usr/local/bin/kerbrute
 RUN mkdir -p /home/kali/.config/nuclei && \

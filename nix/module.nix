@@ -103,6 +103,7 @@ let
   // optionalAttrs (cfg.dispatcher.execution == "container") {
     container = {
       inherit (cfg.dispatcher.container) image network_mode completed_action cap_add;
+      platform = cfg.dispatcher.container.platform;
     };
   }
   // optionalAttrs (cfg.dispatcher.execution == "local") {
@@ -374,6 +375,15 @@ in
           ];
           default = "stop";
           description = "What to do with a worker container after a run.";
+        };
+        platform = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = ''
+            Optional Docker platform override, e.g. `"linux/amd64"` to pin an architecture
+            under emulation. Left unset, containers use the host architecture and a
+            multi-arch image resolves to its matching variant.
+          '';
         };
         cap_add = mkOption {
           type = types.listOf types.str;

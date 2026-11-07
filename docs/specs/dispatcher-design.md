@@ -888,6 +888,7 @@ codex exec resume "{session}" --dangerously-bypass-approvals-and-sandbox --model
 | `container.image` | 是 | 项目容器镜像 |
 | `container.network_mode` | 是 | 项目容器网络模式 |
 | `container.completed_action` | 是 | 项目 completed 后对容器的处理方式 |
+| `container.platform` | 否 | 可选的 Docker 平台覆盖，如 `linux/amd64`；不填则按宿主架构在镜像的多个架构变体中选择 |
 
 `container.completed_action` 可选值：
 

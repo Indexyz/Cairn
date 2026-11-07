@@ -46,7 +46,13 @@ class ContainerManager:
             LOG.info("starting existing container project=%s container=%s state=%s", project_id, name, state)
             self._start_existing(name)
             return name
-        LOG.info("creating container project=%s container=%s image=%s", project_id, name, self._config.image)
+        LOG.info(
+            "creating container project=%s container=%s image=%s platform=%s",
+            project_id,
+            name,
+            self._config.image,
+            self._config.platform or "auto",
+        )
         try:
             self._client.containers.run(
                 self._config.image,
@@ -54,6 +60,7 @@ class ContainerManager:
                 detach=True,
                 name=name,
                 network_mode=self._config.network_mode,
+                platform=self._config.platform or None,
                 cap_add=self._config.cap_add or None,
             )
             LOG.info("created container project=%s container=%s", project_id, name)

@@ -133,3 +133,12 @@ def test_codex_driver_execute_argv_passes_model_endpoint_and_prompt() -> None:
     assert "gpt-test" in argv
     assert 'model_providers.cairn.base_url="http://api/v1"' in argv
     assert argv[-2:] == ["--", "prompt"]
+
+
+def test_dispatch_config_accepts_optional_container_platform() -> None:
+    payload = make_config().model_dump()
+
+    assert DispatchConfig.model_validate(payload).container.platform is None
+
+    payload["container"]["platform"] = "linux/arm64"
+    assert DispatchConfig.model_validate(payload).container.platform == "linux/arm64"
