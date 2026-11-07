@@ -27,6 +27,7 @@ RUN sudo apt update && \
     sudo apt install -y bsdextrautils npm jq iputils-ping sshpass ncat rlwrap \
     bloodyad coercer enum4linux-ng pwncat chisel-common-binaries \
     dirsearch yq krb5-user gitleaks naabu nikto netexec adb && \
+    sudo apt install -y cmake build-essential python3-dev pkg-config && \
     sudo apt clean && \
     sudo rm -rf /var/lib/apt/lists/* && \
     pip3 install pwntools pymongo --break-system-packages && \

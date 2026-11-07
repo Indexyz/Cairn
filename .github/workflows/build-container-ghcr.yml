@@ -59,7 +59,7 @@ jobs:
           context: ./container
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ steps.meta.outputs.image }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache-${{ matrix.suffix }}
+          cache-from: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache-${{ matrix.suffix }},ignore-error=true
           cache-to: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache-${{ matrix.suffix }},mode=max
 
       - name: Export digest
