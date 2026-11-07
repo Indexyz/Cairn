@@ -13,6 +13,8 @@ import { usePrefs } from "@/hooks/use-prefs";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
+const FAVICON_URL = `${import.meta.env.BASE_URL}favicon.svg`;
+
 const NAV = [
   { to: "/", label: "Projects", icon: LayoutDashboard, end: true },
   { to: "/models", label: "Models", icon: Sparkles, end: false },
@@ -31,7 +33,7 @@ export function AppShell() {
         )}
       >
         <div className="flex h-14 items-center gap-2 px-3">
-          <img src="/favicon.svg" alt="" className="size-8 shrink-0 rounded-lg border bg-background p-1" />
+          <img src={FAVICON_URL} alt="" className="size-8 shrink-0 rounded-lg border bg-background p-1" />
           {!collapsed && (
             <span className="truncate text-sm font-semibold tracking-tight">Cairn</span>
           )}
