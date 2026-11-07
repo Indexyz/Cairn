@@ -209,6 +209,63 @@ uv run --project cairn cairn dispatch --config dispatch.yaml
 
 Local mode is selected by `runtime.execution: local` (see `dispatch.local.example.yaml`). On startup the dispatcher checks each configured worker CLI is installed and runnable, and reminds you they must already be logged in. Each project gets an isolated working directory under `local.workspace_root` (default: the dispatcher's current directory). Run the dispatcher directly on the host — not inside Docker — since the agents run with your user's permissions and no sandbox.
 
+### NixOS
+
+The flake exports `packages.<system>.cairn`, `overlays.default` and `nixosModules.default`. The module runs the server and, optionally, the dispatcher as hardened systemd services with a dedicated `cairn` user and `/var/lib/cairn` state directory.
+
+```nix
+{
+  inputs.cairn.url = "github:oritera/Cairn";
+
+  outputs = { nixpkgs, cairn, ... }: {
+    nixosConfigurations.host = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        cairn.nixosModules.default
+        {
+          virtualisation.docker.enable = true;
+
+          services.cairn = {
+            enable = true;
+            openFirewall = true;
+            environmentFile = "/var/lib/cairn/secrets.env";
+
+            dispatcher = {
+              enable = true;
+              workers = [
+                {
+                  name = "claudecode_deepseek";
+                  type = "claudecode";
+                  taskTypes = [ "bootstrap" "reason" "explore" ];
+                  env.ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic";
+                  env.ANTHROPIC_MODEL = "deepseek-v4-pro";
+                }
+              ];
+            };
+          };
+        }
+      ];
+    };
+  };
+}
+```
+
+The `environmentFile` (a `KEY=value` file, e.g. managed by sops-nix or agenix) is loaded into both units, so keys stay out of the Nix store. `dispatcher.workers` is only the seed list — after first start the model list lives in the database and is edited on the Models page.
+
+Key options:
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `services.cairn.server.host` | `127.0.0.1` | API bind address; use `0.0.0.0` for remote access |
+| `services.cairn.server.port` | `8000` | API port |
+| `services.cairn.stateDir` | `/var/lib/cairn` | Database and workspace directory |
+| `services.cairn.dispatcher.execution` | `container` | `container` uses the Docker socket, `local` uses host CLIs |
+| `services.cairn.dispatcher.serverUrl` | local server | Point at a remote server instead |
+| `services.cairn.dispatcher.extraPackages` | `[]` | CLIs to put on the dispatcher `PATH` (local mode) |
+| `services.cairn.dispatcher.container.cap_add` | `[]` | Capabilities for worker containers |
+
+In `local` mode add the agent CLIs to `extraPackages` and point `dispatcher.local.workspaceRoot` at a writable directory; the dispatcher then runs with `PrivateDevices` off and no Docker access. Operators are expected to add port forwarding or a reverse proxy themselves when exposing the API.
+
 ### Tests
 
 Run the fast regression suite without Docker or live model endpoints:
