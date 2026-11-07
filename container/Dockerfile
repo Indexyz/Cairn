@@ -79,16 +79,16 @@ RUN sudo npm install -g @openai/codex@0.118.0
 RUN sudo npm install -g @anthropic-ai/claude-code@2.1.98
 RUN sudo npm install -g @mariozechner/pi-coding-agent@0.73.0
 
-COPY --from=kerbrute /kerbrute /tmp/kerbrute-built
+COPY --from=kerbrute /kerbrute /usr/local/bin/kerbrute
 
-RUN cd /tmp && \
-    if [ "$TARGETARCH" = "amd64" ]; then \
-        wget -q "https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_linux_amd64" -O kerbrute; \
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        cd /tmp && \
+        wget -q "https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_linux_amd64" -O kerbrute && \
+        sudo install -m 0755 kerbrute /usr/local/bin/kerbrute && \
+        rm -f kerbrute; \
     else \
-        cp kerbrute-built kerbrute; \
-    fi && \
-    sudo install -m 0755 kerbrute /usr/local/bin/kerbrute && \
-    rm -f kerbrute kerbrute-built
+        sudo chmod 0755 /usr/local/bin/kerbrute; \
+    fi
 
 RUN sudo chmod +x /usr/local/bin/kerbrute
 RUN mkdir -p /home/kali/.config/nuclei && \
