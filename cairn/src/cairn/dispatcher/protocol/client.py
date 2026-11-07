@@ -76,6 +76,10 @@ class CairnClient:
         response.raise_for_status()
         return self._model_adapter.validate_python(response.json())
 
+    def report_model_usage(self, counts: dict[str, int]) -> ApiResult:
+        usage = [{"name": name, "used": used} for name, used in counts.items()]
+        return self._request_json("PUT", "/models/usage", json={"usage": usage})
+
     def export_project(self, project_id: str) -> str:
         response = self._session().get(
             self._url(f"/projects/{project_id}/export"),

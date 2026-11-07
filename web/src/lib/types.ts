@@ -10,6 +10,8 @@ export interface WorkerModel {
   max_running: number;
   priority: number;
   env: Record<string, string>;
+  /** Live running count reported by the dispatcher, absent when unknown. */
+  used?: number;
 }
 
 export interface Fact {

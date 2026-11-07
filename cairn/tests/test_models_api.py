@@ -146,3 +146,39 @@ def test_model_test_reports_missing_env(client: TestClient) -> None:
 
     assert response.status_code == 422
     assert "ANTHROPIC_BASE_URL" in response.json()["detail"]
+
+
+def test_usage_report_is_reflected_in_the_list(client: TestClient) -> None:
+    client.post("/models", json=_model("busy"))
+    client.post("/models", json=_model("idle"))
+
+    response = client.put("/models/usage", json={"usage": [{"name": "busy", "used": 2}]})
+
+    assert response.status_code == 200
+    usage = {item["name"]: item["used"] for item in response.json()}
+    assert usage == {"busy": 2, "idle": 0}
+    assert {item["name"]: item["used"] for item in client.get("/models").json()} == usage
+
+
+def test_usage_expires_and_is_dropped_with_the_model(client: TestClient, monkeypatch) -> None:
+    from cairn.server.routers import models as models_router
+
+    client.post("/models", json=_model("gone"))
+    client.put("/models/usage", json={"usage": [{"name": "gone", "used": 5}]})
+    assert models_router._usage_for("gone") == 5
+
+    models_router._USAGE["gone"] = (5, 0.0)
+    assert models_router._usage_for("gone") == 0
+
+    client.delete("/models/gone")
+    assert "gone" not in models_router._USAGE
+
+
+def test_usage_report_accepts_an_empty_payload(client: TestClient) -> None:
+    client.post("/models", json=_model("quiet"))
+    client.put("/models/usage", json={"usage": [{"name": "quiet", "used": 3}]})
+
+    response = client.put("/models/usage", json={"usage": []})
+
+    assert response.status_code == 200
+    assert [item["used"] for item in response.json()] == [0]

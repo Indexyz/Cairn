@@ -503,3 +503,27 @@ def test_first_models_after_idle_run_startup_healthchecks() -> None:
 
     assert calls == [False]
     assert [model.name for model in loop.config.workers] == ["added"]
+
+
+def test_model_usage_reports_running_tasks_per_worker() -> None:
+    loop = _loop()
+    loop.futures = {}
+
+    class _Task:
+        def __init__(self, worker: str) -> None:
+            self.worker_name = worker
+
+    for worker in ["a", "b", "a"]:
+        loop.futures[object()] = _Task(worker)
+
+    captured: list[dict[str, int]] = []
+
+    class _Client:
+        def report_model_usage(self, counts):
+            captured.append(counts)
+            return None
+
+    loop.client = _Client()
+    loop._report_model_usage()
+
+    assert captured == [{"a": 2, "b": 1}]

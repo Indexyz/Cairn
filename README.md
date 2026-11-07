@@ -201,6 +201,8 @@ Each row on the Models page has a test button that runs the dispatcher's own wor
 
 The UI ships English, Simplified Chinese and Japanese. Switch language in the sidebar footer or in Settings; the choice and the date formats follow it and are stored per browser.
 
+The concurrency column shows slots in use against the cap, taken from the running-task counts the dispatcher reports every tick; it turns amber when a model is saturated.
+
 API probe keys are stored as plain text in the database.
 
 ### Local mode (no Docker)

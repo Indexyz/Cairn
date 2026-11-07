@@ -187,6 +187,8 @@ env           # 环境变量对象，字符串键值；容器模式下必须包�
 
 服务端按 `priority` 升序、`name` 升序返回。
 
+响应中的 `used` 是 dispatcher 上报的实时运行数（只读，不落库，30 秒未更新自动归零）；新建、更新、删除的请求体可以不带该字段。
+
 ---
 
 ## 接口列表
@@ -263,6 +265,16 @@ Body：
 #### PUT /models/{name}
 
 更新单个模型，允许改名（`body.name` 与路径不同，冲突时返回 `409`）。模型不存在返回 `404`。
+
+#### PUT /models/usage
+
+由 dispatcher 每个调度轮调用，上报每个模型当前的运行中任务数；未出现的模型计为 0。数值只在内存保留，超过 30 秒未上报即过期。
+
+Body：
+
+```json
+{ "usage": [ { "name": "claudecode_deepseek-v4-pro", "used": 2 } ] }
+```
 
 #### POST /models/{name}/test
 

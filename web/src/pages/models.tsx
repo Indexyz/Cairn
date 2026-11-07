@@ -5,6 +5,7 @@ import { FlaskConical, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-reac
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import type { ModelTestResult, TaskType, WorkerModel, WorkerType } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -118,6 +119,8 @@ export function ModelsPage() {
 
   useEffect(() => {
     void load();
+    const timer = window.setInterval(() => void load(), 5000);
+    return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -302,7 +305,27 @@ export function ModelsPage() {
                       {model.task_types.join(", ")}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{model.priority}</TableCell>
-                    <TableCell className="text-right tabular-nums">{model.max_running}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {model.max_running > 0 && (
+                        <span
+                          className={cn(
+                            "font-medium",
+                            (model.used ?? 0) >= model.max_running
+                              ? "text-amber-600"
+                              : (model.used ?? 0) > 0
+                                ? "text-foreground"
+                                : "text-muted-foreground",
+                          )}
+                          title={t("models.header.concurrencyHint", {
+                            used: model.used ?? 0,
+                            total: model.max_running,
+                          })}
+                        >
+                          {model.used ?? 0}
+                        </span>
+                      )}
+                      <span className="text-muted-foreground"> / {model.max_running}</span>
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {Object.keys(model.env).length}
                     </TableCell>

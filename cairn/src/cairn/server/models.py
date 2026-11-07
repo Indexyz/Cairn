@@ -10,6 +10,18 @@ from cairn.dispatcher.config import WorkerConfig
 class WorkerModel(WorkerConfig):
     """Worker model entry persisted in the database."""
 
+    # Live value reported by the dispatcher; never stored in the database.
+    used: int = 0
+
+
+class ModelUsageEntry(BaseModel):
+    name: str
+    used: int = Field(ge=0)
+
+
+class ModelUsageRequest(BaseModel):
+    usage: list[ModelUsageEntry] = Field(default_factory=list)
+
 
 class ModelTestResult(BaseModel):
     ok: bool

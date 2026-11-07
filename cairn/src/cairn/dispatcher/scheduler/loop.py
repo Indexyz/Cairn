@@ -89,6 +89,7 @@ class DispatcherLoop:
                         self._settings_checked = True
                     self._reap_futures()
                     self._reap_cleanup_futures()
+                    self._report_model_usage()
                     summaries = self.client.list_projects()
                     self._initialize_reason_checkpoints(summaries)
                     self._refresh_runtime_projects(summaries)
@@ -130,6 +131,13 @@ class DispatcherLoop:
             )
             for worker in self.config.workers
         )
+
+    def _report_model_usage(self) -> None:
+        """Tell the server how many tasks each worker currently runs, for the Models page."""
+        counts: dict[str, int] = {}
+        for task in self.futures.values():
+            counts[task.worker_name] = counts.get(task.worker_name, 0) + 1
+        self.client.report_model_usage(counts)
 
     def _sync_workers(self, *, seed: bool = False) -> None:
         """Reload the authoritative worker model list from the server."""
