@@ -199,7 +199,7 @@ An empty model list is a normal state: the dispatcher logs a warning and idles w
 
 Each row on the Models page has a test button that runs the dispatcher's own worker healthcheck against the saved model and reports status and latency. The probe is sent from the server host, so it does not prove anything about the dispatcher host or a local-mode CLI.
 
-The UI ships English, Simplified Chinese and Japanese. Switch language in the sidebar footer or in Settings; the choice and the date formats follow it and are stored per browser.
+The UI ships English, Simplified Chinese and Japanese. Switch language in the sidebar footer or on the Settings page; the choice and the date formats follow it and are stored per browser.
 
 The concurrency column shows slots in use against the cap, derived from the live leases; it turns amber when a model is saturated.
 

@@ -6,6 +6,7 @@ import { ToastProvider } from "@/hooks/use-toast";
 import { ModelsPage } from "@/pages/models";
 import { ProjectPage } from "@/pages/project";
 import { ProjectsPage } from "@/pages/projects";
+import { SettingsPage } from "@/pages/settings";
 
 export function App() {
   return (
@@ -16,6 +17,7 @@ export function App() {
             <Route element={<AppShell />}>
               <Route index element={<ProjectsPage />} />
               <Route path="models" element={<ModelsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
               <Route path="projects/:projectId" element={<ProjectPage />} />
             </Route>
           </Routes>

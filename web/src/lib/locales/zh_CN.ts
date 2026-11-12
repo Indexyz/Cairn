@@ -269,6 +269,13 @@ const zh_CN: LocaleSchema = {
   settings: {
     title: "设置",
     description: "dispatcher 超时是共享的；操作者、语言和布局只存在此浏览器。",
+    dispatcherSection: "调度器",
+    dispatcherHint: "所有客户端共享，保存在服务端。",
+    saveServer: "保存超时",
+    serverSaved: "超时已保存",
+    browserSection: "此浏览器",
+    saveBrowser: "保存偏好",
+    unsaved: "有未保存的更改",
     intentTimeout: "意图超时（秒）",
     reasonTimeout: "推理超时（秒）",
     actor: "操作者",

@@ -267,6 +267,13 @@ const en = {
   settings: {
     title: "Settings",
     description: "Dispatcher timeouts are shared; actor, language and layout stay in this browser.",
+    dispatcherSection: "Dispatcher",
+    dispatcherHint: "Shared by every client and stored on the server.",
+    saveServer: "Save timeouts",
+    serverSaved: "Timeouts saved",
+    browserSection: "This browser",
+    saveBrowser: "Save preferences",
+    unsaved: "Unsaved changes",
     intentTimeout: "Intent timeout (seconds)",
     reasonTimeout: "Reason timeout (seconds)",
     actor: "Actor",

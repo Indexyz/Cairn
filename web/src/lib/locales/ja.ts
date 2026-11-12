@@ -269,6 +269,13 @@ const ja: LocaleSchema = {
   settings: {
     title: "設定",
     description: "dispatcher のタイムアウトは共有です。実行者・言語・レイアウトはこのブラウザにのみ保存されます。",
+    dispatcherSection: "ディスパッチャー",
+    dispatcherHint: "全クライアント共通で、サーバーに保存されます。",
+    saveServer: "タイムアウトを保存",
+    serverSaved: "タイムアウトを保存しました",
+    browserSection: "このブラウザ",
+    saveBrowser: "設定を保存",
+    unsaved: "未保存の変更",
     intentTimeout: "意図のタイムアウト（秒）",
     reasonTimeout: "推論のタイムアウト（秒）",
     actor: "実行者",

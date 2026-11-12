@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Link, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   ChevronsLeft,
@@ -27,7 +27,7 @@ const FAVICON_URL = `${import.meta.env.BASE_URL}favicon.svg`;
 
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
-  const { actorName, openSettings } = usePrefs();
+  const { actorName } = usePrefs();
   const { t } = useTranslation();
 
   const nav = [
@@ -93,18 +93,22 @@ export function AppShell() {
                   {t("nav.system")}
                 </p>
               )}
-              <button
-                type="button"
-                onClick={openSettings}
-                className={cn(
-                  "flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground",
-                  collapsed && "justify-center px-0",
-                )}
+              <NavLink
+                to="/settings"
+                className={({ isActive }) =>
+                  cn(
+                    "flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-sm transition-colors",
+                    isActive
+                      ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                      : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+                    collapsed && "justify-center px-0",
+                  )
+                }
                 title={t("nav.settings")}
               >
                 <Settings className="size-4 shrink-0" />
                 {!collapsed && <span>{t("nav.settings")}</span>}
-              </button>
+              </NavLink>
 
               {!collapsed ? (
                 <Select value={currentLocale()} onValueChange={(value) => setLocale(value as Locale)}>
@@ -137,9 +141,8 @@ export function AppShell() {
         </nav>
 
         <div className="border-t border-sidebar-border p-2">
-          <button
-            type="button"
-            onClick={openSettings}
+          <Link
+            to="/settings"
             className={cn(
               "flex h-10 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-sidebar-accent/60",
               collapsed && "justify-center px-0",
@@ -150,7 +153,7 @@ export function AppShell() {
               <UserRound className="size-4 text-muted-foreground" />
             </span>
             {!collapsed && <span className="truncate text-muted-foreground">{actorName}</span>}
-          </button>
+          </Link>
         </div>
       </aside>
 
