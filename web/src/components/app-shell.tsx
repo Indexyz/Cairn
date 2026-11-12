@@ -39,7 +39,7 @@ export function AppShell() {
     <div className="flex h-full overflow-hidden bg-muted/30">
       <aside
         className={cn(
-          "flex shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200",
+          "relative flex shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200",
           collapsed ? "w-16" : "w-60",
         )}
       >
@@ -48,16 +48,17 @@ export function AppShell() {
           {!collapsed && (
             <span className="truncate text-sm font-semibold tracking-tight">Cairn</span>
           )}
-          <div className="flex-1" />
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setCollapsed((value) => !value)}
-            aria-label={collapsed ? t("nav.expand") : t("nav.collapse")}
-          >
-            {collapsed ? <ChevronsRight className="size-4" /> : <ChevronsLeft className="size-4" />}
-          </Button>
         </div>
+
+        {/* Kept out of the header flow so it stays reachable at both widths. */}
+        <Button
+          variant="outline"
+          onClick={() => setCollapsed((value) => !value)}
+          aria-label={collapsed ? t("nav.expand") : t("nav.collapse")}
+          className="absolute top-4 -right-3 z-20 size-6 rounded-full bg-background p-0 shadow-sm"
+        >
+          {collapsed ? <ChevronsRight className="size-3.5" /> : <ChevronsLeft className="size-3.5" />}
+        </Button>
 
         <nav className="flex flex-1 flex-col gap-1 px-2 pt-2">
               {!collapsed && (
