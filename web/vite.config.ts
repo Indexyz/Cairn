@@ -27,7 +27,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["src/**/*.test.tsx"],
+    include: ["src/**/*.test.{ts,tsx}"],
     browser: {
       enabled: true,
       headless: true,

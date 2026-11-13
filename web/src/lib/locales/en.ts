@@ -11,6 +11,7 @@ const en = {
     edit: "Edit",
     copy: "Copy",
     copied: "Copied",
+    download: "Download",
     copyFailed: "Copy failed",
     search: "Search",
     add: "Add",

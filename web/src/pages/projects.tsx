@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { FileCode2, GitFork, Pencil, Plus, RotateCcw, Search, Square, Trash2 } from "lucide-react";
+import { Download, FileCode2, GitFork, Pencil, Plus, RotateCcw, Search, Square, Trash2 } from "lucide-react";
 
 import { useFormat } from "@/lib/format";
 import { usePrefs } from "@/hooks/use-prefs";
 import { useToast } from "@/hooks/use-toast";
 import { api, copyText, fetchText } from "@/lib/api";
+import { downloadText, snapshotFilename } from "@/lib/download";
 import type { ProjectDetail, ProjectStatus, ProjectSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +68,7 @@ export function ProjectsPage() {
   const [forkTitle, setForkTitle] = useState("");
   const [forkingBusy, setForkingBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [snapshot, setSnapshot] = useState<{ title: string; text: string } | null>(null);
+  const [snapshot, setSnapshot] = useState<{ id: string; title: string; text: string } | null>(null);
 
   async function load() {
     try {
@@ -220,7 +221,7 @@ export function ProjectsPage() {
   async function openSnapshot(project: ProjectSummary) {
     try {
       const text = await fetchText(`/projects/${project.id}/export?format=yaml`);
-      setSnapshot({ title: `${project.id} - ${project.title}`, text });
+      setSnapshot({ id: project.id, title: `${project.id} - ${project.title}`, text });
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -584,6 +585,13 @@ export function ProjectsPage() {
             <pre className="text-xs leading-5">{snapshot?.text}</pre>
           </div>
           <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => snapshot && downloadText(snapshotFilename(snapshot.id), snapshot.text)}
+            >
+              <Download className="size-4" />
+              {t("common.download")}
+            </Button>
             <Button
               variant="outline"
               onClick={() =>

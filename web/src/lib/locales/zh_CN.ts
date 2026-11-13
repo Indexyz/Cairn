@@ -13,6 +13,7 @@ const zh_CN: LocaleSchema = {
     edit: "编辑",
     copy: "复制",
     copied: "已复制",
+    download: "下载",
     copyFailed: "复制失败",
     search: "搜索",
     add: "添加",

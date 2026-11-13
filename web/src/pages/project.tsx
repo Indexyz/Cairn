@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   CircleCheck,
   Copy,
+  Download,
   FileCode2,
   Lightbulb,
   Maximize2,
@@ -23,6 +24,7 @@ import { useCytoscape } from "@/hooks/use-cytoscape";
 import { usePrefs } from "@/hooks/use-prefs";
 import { useToast } from "@/hooks/use-toast";
 import { api, copyText, fetchText } from "@/lib/api";
+import { downloadText, snapshotFilename } from "@/lib/download";
 import { LAYOUT_MODES, useFormat, type LayoutMode } from "@/lib/format";
 import { buildTimeline, isBootstrapIntent, timelineEventBadge, timelineEventBadgeClass, timelineEventDotClass, timelineEventIsInteractive, timelineEventTriggersGraphFocus } from "@/lib/timeline";
 import type { Intent, ProjectDetail, ProjectStatus, Selection, TimelineEvent } from "@/lib/types";
@@ -1373,6 +1375,13 @@ export function ProjectPage() {
             <pre className="text-xs leading-5">{snapshot}</pre>
           </div>
           <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => snapshot && downloadText(snapshotFilename(project.project.id), snapshot)}
+            >
+              <Download className="size-3.5" />
+              {t("common.download")}
+            </Button>
             <Button
               variant="outline"
               onClick={() =>

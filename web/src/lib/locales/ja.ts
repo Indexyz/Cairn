@@ -13,6 +13,7 @@ const ja: LocaleSchema = {
     edit: "編集",
     copy: "コピー",
     copied: "コピーしました",
+    download: "ダウンロード",
     copyFailed: "コピーに失敗しました",
     search: "検索",
     add: "追加",
