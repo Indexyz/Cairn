@@ -43,6 +43,8 @@ export function useCytoscape(options: Options) {
   layoutRef.current = layoutMode;
 
   const positionsKey = useRef<ProjectDetail | null>(null);
+  // The container only exists once the project is loaded, so initialisation must re-run then.
+  const hasProject = Boolean(project);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -56,6 +58,8 @@ export function useCytoscape(options: Options) {
       maxZoom: 3.5,
     });
     cyRef.current = instance;
+    // Handy for debugging graph rendering from the console or a headless check.
+    (window as unknown as { __cy?: Core }).__cy = instance;
 
     instance.on("tap", "node", (event) => {
       handlers.current.onNodeTap(event.target as NodeSingular, event.originalEvent.shiftKey);
@@ -76,8 +80,9 @@ export function useCytoscape(options: Options) {
       observer.disconnect();
       instance.destroy();
       cyRef.current = null;
+      delete (window as unknown as { __cy?: Core }).__cy;
     };
-  }, [containerRef, resetKey]);
+  }, [containerRef, resetKey, hasProject]);
 
   const snapshotPositions = useCallback(() => {
     const positions = new Map<string, { x: number; y: number }>();

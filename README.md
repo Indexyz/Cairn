@@ -296,6 +296,8 @@ Run the fast regression suite without Docker or live model endpoints:
 uv run --project cairn --group dev pytest
 ```
 
+Web canvases have a headless smoke check: start the server, then run `npm --prefix web run check:graph`. It creates a throwaway project and fails if the graph renders without nodes. On NixOS point `CHROME` at a Chromium build.
+
 ## Disclaimer
 
 Cairn is a general-purpose problem-solving engine. Although it supports penetration testing, CTF solving, security assessment, and vulnerability research workflows, it is intended to be used only in environments where you have explicit authorization to operate.
