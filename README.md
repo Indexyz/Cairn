@@ -298,7 +298,7 @@ uv run --project cairn --group dev pytest
 
 The web UI has a Vitest browser-mode test: `npm --prefix web test`. It mounts the project page with a stubbed API and fails when the graph renders no nodes. On NixOS point `CHROME` at a Chromium build.
 
-CI (`.github/workflows/ci.yml`) runs both suites, the type check and the build on every push to `main` and on pull requests.
+CI (`.github/workflows/ci.yml`) runs both suites, the type check, the build and a Nix derivation build on every push to `main` and on pull requests.
 
 ## Disclaimer
 

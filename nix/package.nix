@@ -30,7 +30,7 @@ let
     pname = "cairn-web";
     inherit version;
     src = ../web;
-    npmDepsHash = "sha256-zoResFm6yhpNidyJ+7DNgZ5sg86pkTZ7z2M0D0UQrF0=";
+    npmDepsHash = "sha256-zVYIaeo9CWiKZDxTQex6xo5sdtGec4kXsdGhJGGVihI=";
 
     nativeBuildInputs = [ nodejs_22 ];
 
