@@ -296,7 +296,7 @@ Run the fast regression suite without Docker or live model endpoints:
 uv run --project cairn --group dev pytest
 ```
 
-Web canvases have a headless smoke check: start the server, then run `npm --prefix web run check:graph`. It creates a throwaway project and fails if the graph renders without nodes. On NixOS point `CHROME` at a Chromium build.
+The web UI has a Vitest browser-mode test: `npm --prefix web test`. It mounts the project page with a stubbed API and fails when the graph renders no nodes. On NixOS point `CHROME` at a Chromium build.
 
 ## Disclaimer
 
