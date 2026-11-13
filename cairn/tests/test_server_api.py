@@ -207,3 +207,45 @@ def test_project_creation_rejects_invalid_bootstrap_enabled(client: TestClient) 
     )
 
     assert response.status_code == 422
+
+
+def test_fork_copies_origin_goal_and_hints(client: TestClient) -> None:
+    project_id = _create_project(client)
+
+    response = client.post(f"/projects/{project_id}/fork", json={})
+
+    assert response.status_code == 201
+    forked = response.json()
+    assert forked["project"]["id"] != project_id
+    assert forked["project"]["title"] == "test (fork)"
+    assert forked["project"]["status"] == "active"
+    assert forked["project"]["bootstrap_enabled"] is True
+    assert forked["facts"] == [
+        {"id": "origin", "description": "starting point"},
+        {"id": "goal", "description": "finish"},
+    ]
+    assert [hint["content"] for hint in forked["hints"]] == ["initial clue"]
+    assert forked["hints"][0]["creator"] == "human"
+    # Hint ids are scoped per project, so the fork starts its own counter at h001.
+    assert forked["hints"][0]["id"] == "h001"
+    # Cloned hints are re-timestamped to the fork time.
+    assert forked["hints"][0]["created_at"] == forked["project"]["created_at"]
+    assert forked["intents"] == []
+
+    source = client.get(f"/projects/{project_id}").json()
+    assert source["facts"] == forked["facts"]
+    assert source["project"]["title"] == "test"
+
+
+def test_fork_accepts_a_title_and_allows_an_empty_body(client: TestClient) -> None:
+    project_id = _create_project(client)
+
+    named = client.post(f"/projects/{project_id}/fork", json={"title": "retry"})
+    blank = client.post(f"/projects/{project_id}/fork", json={"title": "   "})
+
+    assert named.json()["project"]["title"] == "retry"
+    assert blank.json()["project"]["title"] == "test (fork)"
+
+
+def test_fork_returns_404_for_unknown_project(client: TestClient) -> None:
+    assert client.post("/projects/proj_999/fork", json={}).status_code == 404

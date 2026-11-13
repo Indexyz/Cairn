@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { FileCode2, Pencil, Plus, RotateCcw, Search, Square, Trash2 } from "lucide-react";
+import { FileCode2, GitFork, Pencil, Plus, RotateCcw, Search, Square, Trash2 } from "lucide-react";
 
 import { useFormat } from "@/lib/format";
 import { usePrefs } from "@/hooks/use-prefs";
@@ -63,6 +63,9 @@ export function ProjectsPage() {
   const [reopen, setReopen] = useState<{ id: string; title: string } | null>(null);
   const [reopenText, setReopenText] = useState("");
   const [removal, setRemoval] = useState<{ id: string; title: string } | null>(null);
+  const [forking, setForking] = useState<{ id: string; title: string } | null>(null);
+  const [forkTitle, setForkTitle] = useState("");
+  const [forkingBusy, setForkingBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [snapshot, setSnapshot] = useState<{ title: string; text: string } | null>(null);
 
@@ -178,6 +181,24 @@ export function ProjectsPage() {
       toast.show(t("projects.toast.reopened"));
     } catch (error) {
       toast.show((error as Error).message, "error");
+    }
+  }
+
+  async function forkProject() {
+    if (!forking || forkingBusy) return;
+    setForkingBusy(true);
+    try {
+      const forked = await api<ProjectDetail>("POST", `/projects/${forking.id}/fork`, {
+        title: forkTitle.trim() || null,
+      });
+      setForking(null);
+      await load();
+      toast.show(t("projects.toast.forked", { id: forked.project.id }));
+      navigate(`/projects/${forked.project.id}`);
+    } catch (error) {
+      toast.show((error as Error).message, "error");
+    } finally {
+      setForkingBusy(false);
     }
   }
 
@@ -356,6 +377,17 @@ export function ProjectsPage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
+                          title={t("projects.fork.action")}
+                          onClick={() => {
+                            setForkTitle(`${project.title} (fork)`);
+                            setForking({ id: project.id, title: project.title });
+                          }}
+                        >
+                          <GitFork className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
                           className="text-destructive hover:text-destructive"
                           title={t("common.delete")}
                           onClick={() => setRemoval({ id: project.id, title: project.title })}
@@ -494,6 +526,30 @@ export function ProjectsPage() {
             </Button>
             <Button onClick={reopenProject} disabled={!reopenText}>
               {t("project.reopen")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!forking} onOpenChange={(open) => !open && setForking(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("projects.fork.title")}</DialogTitle>
+            <DialogDescription>
+              {t("projects.fork.description", { label: forking ? `${forking.id} - ${forking.title}` : "" })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="fork-title">{t("projects.fork.titleLabel")}</Label>
+            <Input id="fork-title" value={forkTitle} onChange={(event) => setForkTitle(event.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setForking(null)} disabled={forkingBusy}>
+              {t("common.cancel")}
+            </Button>
+            <Button onClick={forkProject} disabled={forkingBusy}>
+              <GitFork className="size-4" />
+              {forkingBusy ? t("common.saving") : t("projects.fork.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

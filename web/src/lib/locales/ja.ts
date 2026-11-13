@@ -55,6 +55,13 @@ const ja: LocaleSchema = {
     },
     reasonRunning: "推論中 · {{worker}} · {{time}}",
     snapshot: "スナップショット",
+    fork: {
+      action: "フォーク",
+      title: "プロジェクトをフォーク",
+      description: "{{label}} の起点・目標・ヒントを引き継いで別のプロジェクトを開始します。事実と意図は空です。",
+      titleLabel: "新しいタイトル",
+      confirm: "フォーク",
+    },
     perPage: "1 ページ 20 件",
     pagination: "1-{{shown}} / 全 {{total}} 件",
     new: {
@@ -90,6 +97,7 @@ const ja: LocaleSchema = {
       renamed: "プロジェクト名を変更しました",
       reopened: "プロジェクトを再開しました",
       deleted: "{{id}} を削除しました",
+      forked: "{{id}} としてフォークしました",
     },
   },
   project: {

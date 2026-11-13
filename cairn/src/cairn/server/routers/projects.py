@@ -5,6 +5,7 @@ from cairn.server.models import (
     CompleteRequest,
     CreateProjectRequest,
     Fact,
+    ForkProjectRequest,
     Hint,
     HeartbeatRequest,
     Intent,
@@ -115,6 +116,74 @@ def create_project(body: CreateProjectRequest):
             facts=[
                 Fact(id="origin", description=body.origin),
                 Fact(id="goal", description=body.goal),
+            ],
+            intents=[],
+            hints=hints,
+        )
+
+
+@router.post("/projects/{project_id}/fork", response_model=ProjectDetail, status_code=201)
+def fork_project(project_id: str, body: ForkProjectRequest | None = None):
+    """Start a new project from the same origin, goal and hints."""
+    with get_conn() as conn:
+        source = get_project_or_404(conn, project_id)
+        facts = {
+            row["id"]: row["description"]
+            for row in conn.execute(
+                "SELECT id, description FROM facts WHERE project_id = ? AND id IN ('origin', 'goal')",
+                (project_id,),
+            ).fetchall()
+        }
+        source_hints = conn.execute(
+            "SELECT content, creator FROM hints WHERE project_id = ? ORDER BY created_at",
+            (project_id,),
+        ).fetchall()
+
+        pid = next_project_id(conn)
+        now = utcnow()
+        title = (body.title if body else None) or f"{source['title']} (fork)"
+
+        conn.execute(
+            "INSERT INTO projects (id, title, status, bootstrap_enabled, created_at) VALUES (?, ?, 'active', ?, ?)",
+            (pid, title, source["bootstrap_enabled"], now),
+        )
+        conn.execute(
+            "INSERT INTO facts (id, project_id, description) VALUES ('origin', ?, ?)",
+            (pid, facts["origin"]),
+        )
+        conn.execute(
+            "INSERT INTO facts (id, project_id, description) VALUES ('goal', ?, ?)",
+            (pid, facts["goal"]),
+        )
+
+        hints: list[Hint] = []
+        for source_hint in source_hints:
+            hid = next_hint_id(conn, pid)
+            conn.execute(
+                "INSERT INTO hints (id, project_id, content, creator, created_at) VALUES (?, ?, ?, ?, ?)",
+                (hid, pid, source_hint["content"], source_hint["creator"], now),
+            )
+            hints.append(
+                Hint(
+                    id=hid,
+                    content=source_hint["content"],
+                    creator=source_hint["creator"],
+                    created_at=now,
+                )
+            )
+
+        return ProjectDetail(
+            project=ProjectMeta(
+                id=pid,
+                title=title,
+                status="active",
+                bootstrap_enabled=bool(source["bootstrap_enabled"]),
+                created_at=now,
+                reason=None,
+            ),
+            facts=[
+                Fact(id="origin", description=facts["origin"]),
+                Fact(id="goal", description=facts["goal"]),
             ],
             intents=[],
             hints=hints,

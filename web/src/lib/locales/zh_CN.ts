@@ -55,6 +55,13 @@ const zh_CN: LocaleSchema = {
     },
     reasonRunning: "推理中 · {{worker}} · {{time}}",
     snapshot: "快照",
+    fork: {
+      action: "Fork",
+      title: "Fork 项目",
+      description: "以 {{label}} 的起点、目标和提示新建一个项目，事实与意图从空开始。",
+      titleLabel: "新标题",
+      confirm: "Fork",
+    },
     perPage: "每页 20 条",
     pagination: "1-{{shown}} / 共 {{total}} 条",
     new: {
@@ -90,6 +97,7 @@ const zh_CN: LocaleSchema = {
       renamed: "项目已重命名",
       reopened: "项目已重开",
       deleted: "已删除 {{id}}",
+      forked: "已 Fork 为 {{id}}",
     },
   },
   project: {

@@ -119,6 +119,18 @@ class CreateHintInline(BaseModel):
         return text
 
 
+class ForkProjectRequest(BaseModel):
+    title: str | None = None
+
+    @field_validator("title")
+    @classmethod
+    def normalize_title(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        text = value.strip()
+        return text or None
+
+
 class CreateProjectRequest(BaseModel):
     title: str
     origin: str

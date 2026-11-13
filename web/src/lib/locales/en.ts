@@ -53,6 +53,13 @@ const en = {
     },
     reasonRunning: "Reasoning · {{worker}} · {{time}}",
     snapshot: "Snapshot",
+    fork: {
+      action: "Fork",
+      title: "Fork project",
+      description: "Start a new project from {{label}} with the same origin, goal and hints. Facts and intents start empty.",
+      titleLabel: "New title",
+      confirm: "Fork",
+    },
     perPage: "20 per page",
     pagination: "1-{{shown}} / {{total}} total",
     new: {
@@ -88,6 +95,7 @@ const en = {
       renamed: "Project renamed",
       reopened: "Project reopened",
       deleted: "Deleted {{id}}",
+      forked: "Forked as {{id}}",
     },
   },
   project: {

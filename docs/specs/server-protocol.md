@@ -359,6 +359,18 @@ Body：
 
 ---
 
+#### POST /projects/{project_id}/fork
+
+以源项目的 `origin`、`goal`、`hints` 和 `bootstrap_enabled` 新建一个项目。不复制事实（除 `origin`/`goal`）与意图，hint id 按新项目重新编号，内容与作者保留，创建时间取当前时间。源项目不存在返回 `404`。
+
+Body（可省略）：
+
+```json
+{ "title": "retry" }
+```
+
+`title` 缺省或全空白时取 `<源标题> (fork)`。响应为 `201` 与新项目详情。
+
 #### GET /projects/{project_id}
 
 返回项目完整数据，包含 facts、intents、hints。
