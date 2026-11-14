@@ -86,3 +86,54 @@ test("renders the project graph nodes and edge", async () => {
   expect(container!.getBoundingClientRect().height).toBeGreaterThan(100);
   expect(container!.querySelectorAll("canvas").length).toBeGreaterThan(0);
 });
+
+test("renders a large graph without stalling", async () => {
+  const facts = [{ id: "origin", description: "start" }, { id: "goal", description: "finish" }];
+  const intents = [];
+  for (let index = 1; index <= 400; index += 1) {
+    const id = `f${String(index).padStart(3, "0")}`;
+    facts.push({ id, description: `fact ${index}` });
+    intents.push({
+      id: `i${String(index).padStart(3, "0")}`,
+      from: [index === 1 ? "origin" : `f${String(index - 1).padStart(3, "0")}`],
+      to: id,
+      description: `intent ${index}`,
+      creator: "human",
+      worker: "m@node-a",
+      last_heartbeat_at: "2026-01-01T00:00:02Z",
+      created_at: "2026-01-01T00:00:02Z",
+      concluded_at: "2026-01-01T00:00:03Z",
+    });
+  }
+  const big = { ...project, facts, intents };
+
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/projects/proj_001")) return json(big);
+      return json({});
+    }),
+  );
+
+  const started = performance.now();
+  render(
+    <div style={{ height: 800 }}>
+      <ToastProvider>
+        <PrefsProvider>
+          <MemoryRouter initialEntries={["/projects/proj_001"]}>
+            <Routes>
+              <Route path="/projects/:projectId" element={<ProjectPage />} />
+            </Routes>
+          </MemoryRouter>
+        </PrefsProvider>
+      </ToastProvider>
+    </div>,
+  );
+
+  await vi.waitFor(() => expect(window.__cy?.nodes().length).toBe(facts.length), { timeout: 20000 });
+  const elapsed = performance.now() - started;
+  console.log(`large graph rendered in ${Math.round(elapsed)}ms`);
+  expect(window.__cy!.edges().length).toBe(intents.length);
+  expect(elapsed).toBeLessThan(15000);
+});

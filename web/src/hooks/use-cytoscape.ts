@@ -43,6 +43,7 @@ export function useCytoscape(options: Options) {
   layoutRef.current = layoutMode;
 
   const positionsKey = useRef<ProjectDetail | null>(null);
+  const signatureRef = useRef<string | null>(null);
   // The container only exists once the project is loaded, so initialisation must re-run then.
   const hasProject = Boolean(project);
 
@@ -58,6 +59,7 @@ export function useCytoscape(options: Options) {
       maxZoom: 3.5,
     });
     cyRef.current = instance;
+    signatureRef.current = null;
     // Handy for debugging graph rendering from the console or a headless check.
     (window as unknown as { __cy?: Core }).__cy = instance;
 
@@ -80,6 +82,7 @@ export function useCytoscape(options: Options) {
       observer.disconnect();
       instance.destroy();
       cyRef.current = null;
+      signatureRef.current = null;
       delete (window as unknown as { __cy?: Core }).__cy;
     };
   }, [containerRef, resetKey, hasProject]);
@@ -119,10 +122,56 @@ export function useCytoscape(options: Options) {
     [],
   );
 
+  const pulseActive = useCallback(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.nodes('[nodeType="in_progress"], [nodeType="bootstrap_running"]').forEach((node) => {
+      if (node.scratch("_pulse")) return;
+      node.scratch("_pulse", true);
+      const loop = () => {
+        if (!node.inside()) {
+          node.removeScratch("_pulse");
+          return;
+        }
+        node.animate(
+          { style: { "background-opacity": 0.4 } },
+          {
+            duration: 900,
+            complete: () => {
+              if (!node.inside()) {
+                node.removeScratch("_pulse");
+                return;
+              }
+              node.animate(
+                { style: { "background-opacity": 0.9 } },
+                { duration: 900, complete: loop },
+              );
+            },
+          },
+        );
+      };
+      loop();
+    });
+  }, []);
+
   const updateGraph = useCallback(() => {
     const cy = cyRef.current;
     if (!cy || !project) return;
     const elements = buildElements(project);
+
+    // Cheap fingerprint: polling re-delivers unchanged data every few seconds, and the
+    // whole rebuild (label metrics, style writes) is wasted work in that case.
+    const signature = elements
+      .map(
+        (element) =>
+          `${element.data.id}|${element.data.source ?? ""}|${element.data.nodeType ?? ""}|${
+            element.data.status ?? ""
+          }|${element.data.label ?? ""}`,
+      )
+      .join("\n");
+    if (signature === signatureRef.current) return;
+    signatureRef.current = signature;
+
     const wantedNodes = new Set(
       elements.filter((element) => "source" in element.data === false).map((element) => element.data.id),
     );
@@ -132,18 +181,19 @@ export function useCytoscape(options: Options) {
         .map((element) => element.data.id as string),
     );
     const previous = snapshotPositions();
-    let changed = false;
+    let structural = false;
+    let added = 0;
 
     cy.nodes().forEach((node) => {
       if (!wantedNodes.has(node.id())) {
         node.remove();
-        changed = true;
+        structural = true;
       }
     });
     cy.edges().forEach((edge) => {
       if (!wantedEdges.has(edge.id())) {
         edge.remove();
-        changed = true;
+        structural = true;
       }
     });
 
@@ -167,33 +217,40 @@ export function useCytoscape(options: Options) {
             if (position) withPosition = { ...element, position };
           }
         }
-        const added = cy.add(withPosition);
-        added.addClass("fresh");
+        const created = cy.add(withPosition);
+        added += 1;
+        created.addClass("fresh");
         window.setTimeout(() => {
-          if (!added.inside()) return;
-          added.animate(
+          if (!created.inside()) return;
+          created.animate(
             { style: { opacity: 1 } },
             {
               duration: 450,
               complete: () => {
-                if (added.inside()) added.removeStyle("opacity");
+                if (created.inside()) created.removeStyle("opacity");
               },
             },
           );
-          added.removeClass("fresh");
+          created.removeClass("fresh");
         }, 30);
-        changed = true;
-      } else if (existing.data("nodeType") !== element.data.nodeType || existing.data("label") !== element.data.label) {
+        structural = true;
+      } else if (
+        existing.data("nodeType") !== element.data.nodeType ||
+        existing.data("label") !== element.data.label
+      ) {
         existing.data(element.data);
-        changed = true;
+        structural = true;
       } else if (existing.data("status") !== element.data.status) {
+        // Status-only change (claimed / concluded): repaint without a relayout.
         existing.data(element.data);
       }
     }
 
-    if (changed) cy.layout(layoutOpts(layoutRef.current)).run();
+    // Relayout only when the graph shape changed; status or label updates keep positions.
+    if (structural) cy.layout(layoutOpts(layoutRef.current)).run();
+    if (added > 0) pulseActive();
     positionsKey.current = project;
-  }, [anchorFromIds, project, snapshotPositions]);
+  }, [anchorFromIds, project, snapshotPositions, pulseActive]);
 
   useEffect(() => {
     void positionsKey.current;

@@ -4,6 +4,9 @@ import { isBootstrapIntent } from "@/lib/timeline";
 import type { LayoutMode } from "@/lib/format";
 import type { Intent, ProjectDetail } from "@/lib/types";
 
+// Label metrics are pure functions of the label, which is stable between polls.
+const sizeCache = new Map<string, { width: number; height: number }>();
+
 export function summarizeFactLabel(fact: { id: string; description: string }): string {
   if (fact.id === "origin") return "Origin";
   if (fact.id === "goal") return "Goal";
@@ -57,16 +60,24 @@ export function measureWrappedText(text: string, maxWidth: number, fontSize: num
 }
 
 export function factNodeSize(label: string, nodeType: string) {
+  const cacheKey = `${nodeType}\u0000${label}`;
+  const cached = sizeCache.get(cacheKey);
+  if (cached) return cached;
+
   const preset =
     nodeType === "fact"
       ? { fontSize: 10, maxTextWidth: 116, minWidth: 52, minHeight: 34, paddingX: 10, paddingY: 10 }
       : { fontSize: 11, maxTextWidth: 92, minWidth: 58, minHeight: 38, paddingX: 10, paddingY: 10 };
 
   const measured = measureWrappedText(label, preset.maxTextWidth, preset.fontSize);
-  return {
+  const size = {
     width: Math.max(preset.minWidth, Math.ceil(measured.width + preset.paddingX * 2)),
     height: Math.max(preset.minHeight, Math.ceil(measured.height + preset.paddingY * 2)),
   };
+
+  if (sizeCache.size > 4000) sizeCache.clear();
+  sizeCache.set(cacheKey, size);
+  return size;
 }
 
 export function openIntentNodeType(intent: Intent): string {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { NodeSingular } from "cytoscape";
@@ -60,6 +60,58 @@ const REPLAY_SPEEDS = [
   { value: "1100", key: "project.replay.normal" },
   { value: "1600", key: "project.replay.slow" },
 ];
+
+const TimelineRow = memo(function TimelineRow({
+  entry,
+  selected,
+  onOpen,
+  time,
+  dateLabel,
+}: {
+  entry: TimelineEvent;
+  selected: boolean;
+  onOpen: (entry: TimelineEvent) => void;
+  time: string;
+  dateLabel: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div id={`timeline-entry-${entry.id}`} className="flex gap-2">
+      <div className="flex w-2.5 flex-col items-center">
+        <span className={cn("mt-1.5 size-2.5 rounded-full", timelineEventDotClass(entry))} />
+        {!entry.isLast && <span className="mt-1 w-px flex-1 bg-border" />}
+      </div>
+      <button
+        type="button"
+        onClick={() => onOpen(entry)}
+        className={cn(
+          "min-w-0 flex-1 rounded-lg px-1 py-1 text-left",
+          timelineEventIsInteractive(entry) ? "cursor-pointer hover:bg-muted/50" : "cursor-default",
+          selected && "bg-accent/60 ring-1 ring-border",
+        )}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-[11px] text-muted-foreground">{time}</span>
+          <span
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase",
+              timelineEventBadgeClass(entry),
+            )}
+          >
+            {t(timelineEventBadge(entry))}
+          </span>
+          <span className="text-[11px] text-muted-foreground/70">{dateLabel}</span>
+        </div>
+        <p className="mt-1 text-sm break-words">{entry.title}</p>
+        {(entry.actor || entry.meta.length > 0) && (
+          <p className="mt-0.5 text-[11px] break-words text-muted-foreground">
+            {[entry.actor, ...entry.meta].filter(Boolean).join(" · ")}
+          </p>
+        )}
+      </button>
+    </div>
+  );
+});
 
 interface ReplayState {
   active: boolean;
@@ -145,7 +197,12 @@ export function ProjectPage() {
   const load = useCallback(
     async (id: string) => {
       try {
-        setProject(await api<ProjectDetail>("GET", `/projects/${id}`));
+        const next = await api<ProjectDetail>("GET", `/projects/${id}`);
+        // Polling re-delivers the same JSON; skipping the state write avoids a full re-render.
+        const serialized = JSON.stringify(next);
+        if (serialized === payloadRef.current) return;
+        payloadRef.current = serialized;
+        setProject(next);
       } catch (error) {
         toast.show((error as Error).message, "error");
       }
@@ -158,6 +215,7 @@ export function ProjectPage() {
     setSelectedFacts([]);
     setSelectedTimelineEntryId(null);
     setReplay(EMPTY_REPLAY);
+    payloadRef.current = null;
     void load(projectId);
   }, [projectId, load]);
 
@@ -167,6 +225,27 @@ export function ProjectPage() {
     return () => window.clearInterval(timer);
   }, [projectId, replay.active, load]);
 
+  const projectRef = useRef<ProjectDetail | null>(null);
+  projectRef.current = project;
+  const payloadRef = useRef<string | null>(null);
+  const openEntryRef = useRef(openTimelineEntry);
+  openEntryRef.current = openTimelineEntry;
+  const handleEntryOpen = useCallback((entry: TimelineEvent) => openEntryRef.current(entry), []);
+
+  // Rebuild the timeline only when its inputs actually change, not on every poll.
+  const timelineKey = useMemo(() => {
+    if (!project) return "";
+    return [
+      project.project.id,
+      project.project.title,
+      project.project.status,
+      project.project.created_at,
+      project.facts.map((fact) => fact.id).join("|"),
+      project.intents.map((intent) => `${intent.id}:${intent.worker ?? ""}:${intent.to ?? ""}:${intent.concluded_at ?? ""}`).join("|"),
+      project.hints.map((hint) => hint.id).join("|"),
+    ].join("#");
+  }, [project]);
+
   const timeline = useMemo(() => {
     if (replay.active) {
       return replay.frames
@@ -175,8 +254,8 @@ export function ProjectPage() {
         .filter((event) => event.type !== "reason_started")
         .map((event, index, list) => ({ ...event, isLast: index === list.length - 1 }));
     }
-    return buildTimeline(project);
-  }, [project, replay]);
+    return buildTimeline(projectRef.current);
+  }, [timelineKey, replay]);
 
   const { fit, centerOnFact, centerOnIntent } = useCytoscape({
     containerRef: graphRef,
@@ -596,6 +675,7 @@ export function ProjectPage() {
 
   async function startReplay() {
     if (!project || replay.active) return;
+    payloadRef.current = null;
     try {
       const source = await api<ProjectDetail>("GET", `/projects/${projectId}`);
       const frames = buildReplayFrames(source);
@@ -642,6 +722,7 @@ export function ProjectPage() {
   async function exitReplay() {
     stopReplayTimer();
     setReplay(EMPTY_REPLAY);
+    payloadRef.current = null;
     await load(projectId);
     setReplayVersion((value) => value + 1);
   }
@@ -1166,44 +1247,14 @@ export function ProjectPage() {
                   <p className="py-10 text-center text-sm text-muted-foreground">{t("project.empty.activity")}</p>
                 )}
                 {timeline.map((entry) => (
-                  <div key={entry.id} id={`timeline-entry-${entry.id}`} className="flex gap-2">
-                    <div className="flex w-2.5 flex-col items-center">
-                      <span className={cn("mt-1.5 size-2.5 rounded-full", timelineEventDotClass(entry))} />
-                      {!entry.isLast && <span className="mt-1 w-px flex-1 bg-border" />}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => openTimelineEntry(entry)}
-                      className={cn(
-                        "min-w-0 flex-1 rounded-lg px-1 py-1 text-left",
-                        timelineEventIsInteractive(entry) ? "cursor-pointer hover:bg-muted/50" : "cursor-default",
-                        selectedTimelineEntryId === entry.id && "bg-accent/60 ring-1 ring-border",
-                      )}
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-[11px] text-muted-foreground">
-                          {format.time(entry.timestamp)}
-                        </span>
-                        <span
-                          className={cn(
-                            "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase",
-                            timelineEventBadgeClass(entry),
-                          )}
-                        >
-                          {t(timelineEventBadge(entry))}
-                        </span>
-                        <span className="text-[11px] text-muted-foreground/70">
-                          {format.timelineDate(entry.timestamp)}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-sm break-words">{entry.title}</p>
-                      {(entry.actor || entry.meta.length > 0) && (
-                        <p className="mt-0.5 text-[11px] break-words text-muted-foreground">
-                          {[entry.actor, ...entry.meta].filter(Boolean).join(" · ")}
-                        </p>
-                      )}
-                    </button>
-                  </div>
+                  <TimelineRow
+                    key={entry.id}
+                    entry={entry}
+                    selected={selectedTimelineEntryId === entry.id}
+                    onOpen={handleEntryOpen}
+                    time={format.time(entry.timestamp)}
+                    dateLabel={format.timelineDate(entry.timestamp)}
+                  />
                 ))}
               </div>
             )}
