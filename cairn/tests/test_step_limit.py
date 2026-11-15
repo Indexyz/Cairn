@@ -124,7 +124,27 @@ def test_blocked_project_still_completes_and_notifies(client: TestClient, monkey
     assert _status(client, project_id) == "completed"
 
 
-def test_resuming_a_spent_project_blocks_again_on_the_next_intent(client: TestClient) -> None:
+def test_resuming_a_spent_project_blocks_again_on_the_next_intent(
+    client: TestClient, monkeypatch
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        notifications,
+        "send",
+        lambda channel, event, *args: calls.append(event)
+        or {"ok": True, "status": 204, "detail": "", "duration_ms": 1},
+    )
+    client.post(
+        "/notifications",
+        json={
+            "name": "blocked",
+            "kind": "webhook",
+            "enabled": True,
+            "events": ["project_blocked"],
+            "config": {"url": "https://x.test/hook"},
+        },
+    )
+
     project_id = _project(client, max_steps=1)
     _intent(client, project_id, "only")
     _conclude(client, project_id, "i001")
@@ -134,6 +154,8 @@ def test_resuming_a_spent_project_blocks_again_on_the_next_intent(client: TestCl
     ] == "active"
     assert _intent(client, project_id, "over budget").status_code == 403
     assert _status(client, project_id) == "blocked"
+    # One event for the first block, one for the re-block after the resume.
+    assert calls == ["project_blocked", "project_blocked"]
 
     assert client.put(f"/projects/{project_id}/status", json={"status": "stopped"}).status_code == 200
 

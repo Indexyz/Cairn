@@ -34,13 +34,20 @@ router = APIRouter(tags=["intents"])
     response_model=Intent,
     status_code=201,
 )
-def create_intent(project_id: str, body: CreateIntentRequest):
+def create_intent(project_id: str, body: CreateIntentRequest, background: BackgroundTasks):
     with get_conn() as conn:
-        check_project_runnable(conn, project_id)
+        project = check_project_runnable(conn, project_id)
         if step_budget_exhausted(conn, project_id):
             # A resumed project whose budget is still spent blocks again here. Returning a
             # response instead of raising keeps the block, which a rollback would undo.
-            enforce_step_limit(conn, project_id)
+            if enforce_step_limit(conn, project_id):
+                notifications.notify(
+                    background,
+                    conn,
+                    "project_blocked",
+                    project_id=project_id,
+                    title=project["title"],
+                )
             return JSONResponse(
                 status_code=403, content={"detail": "Project intent step limit reached"}
             )
