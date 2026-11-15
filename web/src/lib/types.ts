@@ -82,6 +82,35 @@ export interface ModelTestResult {
   duration_ms: number;
 }
 
+export type NotificationKind = "discord" | "telegram" | "webhook";
+export type NotificationEvent =
+  | "project_created"
+  | "project_stopped"
+  | "project_resumed"
+  | "project_completed"
+  | "project_reopened";
+
+export interface NotificationChannelPayload {
+  name: string;
+  kind: NotificationKind;
+  enabled: boolean;
+  events: NotificationEvent[];
+  config: Record<string, string>;
+}
+
+export interface NotificationChannel extends NotificationChannelPayload {
+  id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NotificationTestResult {
+  ok: boolean;
+  status: number | null;
+  detail: string;
+  duration_ms: number;
+}
+
 export type TimelineEventType =
   | "project_created"
   | "hint_added"

@@ -167,6 +167,35 @@ creator         # 提示的作者
 created_at
 ```
 
+### NotificationChannel
+
+项目状态变化的外发推送渠道。渠道是图外的运维配置，不影响协议语义，也不参与探索写操作的权限判断。
+
+```
+id            # 系统生成，如 chan_001
+name          # 展示名称
+kind          # "discord" | "telegram" | "webhook"
+enabled       # 是否启用；停用的渠道完全跳过
+events        # 订阅的事件数组，不可为空
+config        # 按 kind 必填的凭据对象
+created_at
+updated_at
+```
+
+`config` 的键随 `kind` 固定：`discord` 需要 `webhook_url`，`telegram` 需要 `bot_token` 与 `chat_id`，`webhook` 需要 `url`。URL 必须是 http(s)；多余键在保存时被丢弃，缺键返回 `422`。
+
+事件取值：
+
+| 事件 | 触发点 |
+| --- | --- |
+| `project_created` | 创建或 fork 项目 |
+| `project_stopped` | `active` → `stopped` |
+| `project_resumed` | `stopped` → `active` |
+| `project_completed` | `complete` 成功 |
+| `project_reopened` | `reopen` 成功 |
+
+投递发生在响应之后（FastAPI background task），因此发送失败不会让触发它的写操作回滚。消息格式按渠道组织：Discord 用 `content`，Telegram 发往 `sendMessage`，webhook 收到 `{event, project_id, title, text}` 的 JSON POST。凭据以明文存储。
+
 ### Settings
 
 ```
@@ -222,6 +251,53 @@ Body：
 {
   "intent_timeout": 5,
   "reason_timeout": 5
+}
+```
+
+---
+
+### Notifications
+
+#### GET /notifications
+
+返回全部推送渠道，按 `created_at`、`id` 升序。
+
+#### POST /notifications
+
+新建渠道，返回 `201`。字段不合法返回 `422`。
+
+Body：
+
+```json
+{
+  "name": "team discord",
+  "kind": "discord",
+  "enabled": true,
+  "events": ["project_completed", "project_reopened"],
+  "config": {"webhook_url": "https://discord.com/api/webhooks/1/abc"}
+}
+```
+
+#### PUT /notifications/{channel_id}
+
+覆盖式更新渠道（含 `enabled`），可用于整体改写或切换启用状态。不存在返回 `404`。
+
+#### DELETE /notifications/{channel_id}
+
+删除渠道，返回 `204`。已发出的消息不受影响。
+
+#### POST /notifications/{channel_id}/test
+
+立即发送一条样例消息，忽略 `enabled`，便于在启用前验证凭据。
+
+响应：
+
+```json
+{
+  "ok": false,
+  "status": 401,
+  "detail": "{\"message\": \"Unauthorized\", ...}",
+  "duration_ms": 132
 }
 ```
 

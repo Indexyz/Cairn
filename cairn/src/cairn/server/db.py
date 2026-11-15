@@ -83,6 +83,18 @@ CREATE TABLE IF NOT EXISTS counters (
 );
 
 INSERT OR IGNORE INTO counters (name, value) VALUES ('project', 0);
+INSERT OR IGNORE INTO counters (name, value) VALUES ('notification_channel', 0);
+
+CREATE TABLE IF NOT EXISTS notification_channels (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    events TEXT NOT NULL,
+    config TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS scoped_counters (
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

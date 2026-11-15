@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from cairn.dispatcher.config import WorkerConfig
+from cairn.server import notifications
 
 
 class WorkerModel(WorkerConfig):
@@ -29,6 +30,57 @@ class LoadSnapshot(BaseModel):
     running_projects: int = 0
     projects: dict[str, int] = Field(default_factory=dict)
     workers: dict[str, int] = Field(default_factory=dict)
+
+
+NotificationKind = Literal["discord", "telegram", "webhook"]
+NotificationEvent = Literal[
+    "project_created",
+    "project_stopped",
+    "project_resumed",
+    "project_completed",
+    "project_reopened",
+]
+
+
+class NotificationChannelPayload(BaseModel):
+    name: str
+    kind: NotificationKind
+    enabled: bool = True
+    events: list[NotificationEvent] = Field(default_factory=lambda: list(notifications.EVENTS))
+    config: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("name")
+    @classmethod
+    def validate_non_empty_text(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("must not be empty")
+        return text
+
+    @field_validator("events")
+    @classmethod
+    def validate_events(cls, value: list[str]) -> list[str]:
+        if not value:
+            raise ValueError("at least one event is required")
+        return [event for event in notifications.EVENTS if event in value]
+
+    @model_validator(mode="after")
+    def validate_config(self) -> NotificationChannelPayload:
+        self.config = notifications.validate_config(self.kind, self.config)
+        return self
+
+
+class NotificationChannel(NotificationChannelPayload):
+    id: str
+    created_at: str
+    updated_at: str
+
+
+class NotificationTestResult(BaseModel):
+    ok: bool
+    status: int | None = None
+    detail: str = ""
+    duration_ms: int
 
 
 class ReplaceModelsRequest(BaseModel):

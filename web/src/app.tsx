@@ -4,6 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { PrefsProvider } from "@/hooks/use-prefs";
 import { ToastProvider } from "@/hooks/use-toast";
 import { ModelsPage } from "@/pages/models";
+import { NotificationsPage } from "@/pages/notifications";
 import { ProjectPage } from "@/pages/project";
 import { ProjectsPage } from "@/pages/projects";
 import { SettingsPage } from "@/pages/settings";
@@ -17,6 +18,7 @@ export function App() {
             <Route element={<AppShell />}>
               <Route index element={<ProjectsPage />} />
               <Route path="models" element={<ModelsPage />} />
+              <Route path="notifications" element={<NotificationsPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="projects/:projectId" element={<ProjectPage />} />
             </Route>

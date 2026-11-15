@@ -2,6 +2,7 @@ import { useState } from "react";
 import { NavLink, Link, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
+  Bell,
   ChevronsLeft,
   ChevronsRight,
   LayoutDashboard,
@@ -33,6 +34,7 @@ export function AppShell() {
   const nav = [
     { to: "/", label: t("nav.projects"), icon: LayoutDashboard, end: true },
     { to: "/models", label: t("nav.models"), icon: Sparkles, end: false },
+    { to: "/notifications", label: t("nav.notifications"), icon: Bell, end: false },
   ];
 
   return (

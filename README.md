@@ -205,6 +205,10 @@ The concurrency column shows slots in use against the cap, derived from the live
 
 API probe keys are stored as plain text in the database.
 
+### Notifications
+
+The **Notifications** page holds push channels for project state changes. A channel targets Discord (webhook URL), Telegram (bot token + chat ID) or a generic webhook, subscribes to individual events — project created, paused, resumed, completed, reopened — and can be enabled, edited, tested or deleted at any time; edits apply to the next event without a restart. Messages are sent from the server host right after the state change, so the server needs outbound access to the target. Delivery failures are logged and never roll back the write that triggered them. Credentials are stored as plain text in the database.
+
 ### Several dispatchers
 
 More than one dispatcher can share one server. Each instance gets an identity — `CAIRN_INSTANCE_ID`, or a random suffix when unset — and writes leases as `model@instance`, so two instances never treat the same model as the same owner: the loser of a claim gets `409` and retries on a later tick.

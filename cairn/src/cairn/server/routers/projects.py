@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
+from cairn.server import notifications
 from cairn.server.db import get_conn
 from cairn.server.models import (
     CompleteRequest,
@@ -76,7 +77,7 @@ def list_projects():
 
 
 @router.post("/projects", response_model=ProjectDetail, status_code=201)
-def create_project(body: CreateProjectRequest):
+def create_project(body: CreateProjectRequest, background: BackgroundTasks):
     with get_conn() as conn:
         pid = next_project_id(conn)
         now = utcnow()
@@ -104,6 +105,8 @@ def create_project(body: CreateProjectRequest):
                 )
                 hints.append(Hint(id=hid, content=h.content, creator=h.creator, created_at=now))
 
+        notifications.notify(background, conn, "project_created", project_id=pid, title=body.title)
+
         return ProjectDetail(
             project=ProjectMeta(
                 id=pid,
@@ -123,7 +126,9 @@ def create_project(body: CreateProjectRequest):
 
 
 @router.post("/projects/{project_id}/fork", response_model=ProjectDetail, status_code=201)
-def fork_project(project_id: str, body: ForkProjectRequest | None = None):
+def fork_project(
+    project_id: str, background: BackgroundTasks, body: ForkProjectRequest | None = None
+):
     """Start a new project from the same origin, goal and hints."""
     with get_conn() as conn:
         source = get_project_or_404(conn, project_id)
@@ -171,6 +176,8 @@ def fork_project(project_id: str, body: ForkProjectRequest | None = None):
                     created_at=now,
                 )
             )
+
+        notifications.notify(background, conn, "project_created", project_id=pid, title=title)
 
         return ProjectDetail(
             project=ProjectMeta(
@@ -233,7 +240,9 @@ def update_project_title(project_id: str, body: UpdateProjectTitleRequest):
 
 
 @router.put("/projects/{project_id}/status", response_model=ProjectMeta)
-def update_project_status(project_id: str, body: UpdateProjectStatusRequest):
+def update_project_status(
+    project_id: str, body: UpdateProjectStatusRequest, background: BackgroundTasks
+):
     with get_conn() as conn:
         expire_reason_leases(conn, project_id)
         row = get_project_or_404(conn, project_id)
@@ -254,6 +263,13 @@ def update_project_status(project_id: str, body: UpdateProjectStatusRequest):
             )
             clear_project_reason(conn, project_id)
         updated = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+        notifications.notify(
+            background,
+            conn,
+            "project_stopped" if body.status == "stopped" else "project_resumed",
+            project_id=project_id,
+            title=updated["title"],
+        )
         return project_meta_from_row(updated)
 
 
@@ -324,9 +340,9 @@ def release_project_reason(project_id: str, body: HeartbeatRequest):
 
 
 @router.post("/projects/{project_id}/complete", response_model=Intent)
-def complete_project(project_id: str, body: CompleteRequest):
+def complete_project(project_id: str, body: CompleteRequest, background: BackgroundTasks):
     with get_conn() as conn:
-        check_project_active(conn, project_id)
+        project = check_project_active(conn, project_id)
         expire_reason_leases(conn, project_id)
         validate_facts_exist(conn, project_id, body.from_)
         validate_goal_not_in_sources(body.from_)
@@ -356,6 +372,15 @@ def complete_project(project_id: str, body: CompleteRequest):
             (project_id,),
         )
 
+        notifications.notify(
+            background,
+            conn,
+            "project_completed",
+            project_id=project_id,
+            title=project["title"],
+            detail=body.description,
+        )
+
         return Intent(
             id=iid,
             **{"from": body.from_},
@@ -370,7 +395,7 @@ def complete_project(project_id: str, body: CompleteRequest):
 
 
 @router.post("/projects/{project_id}/reopen", response_model=ReopenResponse)
-def reopen_project(project_id: str, body: ReopenRequest):
+def reopen_project(project_id: str, body: ReopenRequest, background: BackgroundTasks):
     with get_conn() as conn:
         expire_reason_leases(conn, project_id)
         check_project_completed(conn, project_id)
@@ -420,6 +445,14 @@ def reopen_project(project_id: str, body: ReopenRequest):
         ).fetchone()
         assert updated_project is not None
         assert updated_intent is not None
+        notifications.notify(
+            background,
+            conn,
+            "project_reopened",
+            project_id=project_id,
+            title=updated_project["title"],
+            detail=body.description,
+        )
         return ReopenResponse(
             project=project_meta_from_row(updated_project),
             fact=Fact(id=fact_id, description=description),
