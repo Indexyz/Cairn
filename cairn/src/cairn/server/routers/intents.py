@@ -1,5 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
+from fastapi.responses import JSONResponse
 
+from cairn.server import notifications
 from cairn.server.db import get_conn
 from cairn.server.models import (
     ConcludeRequest,
@@ -10,12 +12,14 @@ from cairn.server.models import (
     Intent,
 )
 from cairn.server.services import (
-    check_project_active,
+    check_project_runnable,
+    enforce_step_limit,
     get_claimable_open_intent_or_404,
     get_releasable_open_intent_or_404,
     intent_to_model,
     next_fact_id,
     next_intent_id,
+    step_budget_exhausted,
     utcnow,
     validate_facts_exist,
     validate_intent_creator_worker,
@@ -32,7 +36,14 @@ router = APIRouter(tags=["intents"])
 )
 def create_intent(project_id: str, body: CreateIntentRequest):
     with get_conn() as conn:
-        check_project_active(conn, project_id)
+        check_project_runnable(conn, project_id)
+        if step_budget_exhausted(conn, project_id):
+            # A resumed project whose budget is still spent blocks again here. Returning a
+            # response instead of raising keeps the block, which a rollback would undo.
+            enforce_step_limit(conn, project_id)
+            return JSONResponse(
+                status_code=403, content={"detail": "Project intent step limit reached"}
+            )
         validate_facts_exist(conn, project_id, body.from_)
         validate_goal_not_in_sources(body.from_)
         validate_intent_creator_worker(body.creator, body.worker)
@@ -77,7 +88,7 @@ def create_intent(project_id: str, body: CreateIntentRequest):
 )
 def heartbeat(project_id: str, intent_id: str, body: HeartbeatRequest):
     with get_conn() as conn:
-        check_project_active(conn, project_id)
+        check_project_runnable(conn, project_id)
         get_claimable_open_intent_or_404(conn, project_id, intent_id, body.worker)
 
         now = utcnow()
@@ -99,7 +110,7 @@ def heartbeat(project_id: str, intent_id: str, body: HeartbeatRequest):
 )
 def release(project_id: str, intent_id: str, body: HeartbeatRequest):
     with get_conn() as conn:
-        check_project_active(conn, project_id)
+        check_project_runnable(conn, project_id)
         row = get_releasable_open_intent_or_404(conn, project_id, intent_id, body.worker)
 
         if row["worker"] == body.worker:
@@ -119,9 +130,14 @@ def release(project_id: str, intent_id: str, body: HeartbeatRequest):
     "/projects/{project_id}/intents/{intent_id}/conclude",
     response_model=ConcludeResponse,
 )
-def conclude(project_id: str, intent_id: str, body: ConcludeRequest):
+def conclude(
+    project_id: str,
+    intent_id: str,
+    body: ConcludeRequest,
+    background: BackgroundTasks,
+):
     with get_conn() as conn:
-        check_project_active(conn, project_id)
+        project = check_project_runnable(conn, project_id)
         get_claimable_open_intent_or_404(conn, project_id, intent_id, body.worker)
 
         now = utcnow()
@@ -140,6 +156,15 @@ def conclude(project_id: str, intent_id: str, body: ConcludeRequest):
             "SELECT * FROM intents WHERE id = ? AND project_id = ?",
             (intent_id, project_id),
         ).fetchone()
+
+        if enforce_step_limit(conn, project_id):
+            notifications.notify(
+                background,
+                conn,
+                "project_blocked",
+                project_id=project_id,
+                title=project["title"],
+            )
 
         return ConcludeResponse(
             fact=Fact(id=fid, description=body.description),

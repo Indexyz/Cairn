@@ -34,6 +34,32 @@ def test_configure_adds_bootstrap_enabled_to_legacy_projects_table(tmp_path, mon
     assert row["bootstrap_enabled"] == 1
 
 
+def test_configure_adds_max_steps_to_legacy_projects_table(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "legacy-steps.db"
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE projects (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                bootstrap_enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO projects (id, title, created_at) VALUES ('proj_001', 'legacy', '2026-01-01T00:00:00Z')"
+        )
+
+    monkeypatch.setattr(db, "_db_path", None)
+    db.configure(path)
+
+    with db.get_conn() as conn:
+        row = conn.execute("SELECT max_steps FROM projects WHERE id = 'proj_001'").fetchone()
+    assert row["max_steps"] is None
+
+
 def test_configure_maps_disabled_bootstrap_mode_to_false(tmp_path, monkeypatch) -> None:
     path = tmp_path / "intermediate.db"
     with sqlite3.connect(path) as conn:

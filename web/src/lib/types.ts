@@ -1,4 +1,4 @@
-export type ProjectStatus = "active" | "stopped" | "completed";
+export type ProjectStatus = "active" | "stopped" | "blocked" | "completed";
 
 export type WorkerType = "claudecode" | "codex" | "pi" | "mock";
 export type TaskType = "reason" | "explore" | "bootstrap";
@@ -50,6 +50,7 @@ export interface ProjectMeta {
   title: string;
   status: ProjectStatus;
   bootstrap_enabled: boolean;
+  max_steps: number | null;
   created_at: string;
   reason: ProjectReason | null;
 }
@@ -87,6 +88,7 @@ export type NotificationEvent =
   | "project_created"
   | "project_stopped"
   | "project_resumed"
+  | "project_blocked"
   | "project_completed"
   | "project_reopened";
 

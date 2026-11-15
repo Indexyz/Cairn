@@ -45,6 +45,7 @@ const EVENTS: NotificationEvent[] = [
   "project_created",
   "project_stopped",
   "project_resumed",
+  "project_blocked",
   "project_completed",
   "project_reopened",
 ];

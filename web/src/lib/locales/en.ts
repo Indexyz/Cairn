@@ -21,6 +21,7 @@ const en = {
     status: {
       active: "running",
       stopped: "paused",
+      blocked: "blocked",
       completed: "done",
     },
   },
@@ -36,7 +37,7 @@ const en = {
   },
   projects: {
     title: "Projects",
-    summary: "{{active}} running · {{stopped}} paused · {{done}} done",
+    summary: "{{active}} running · {{stopped}} paused · {{blocked}} blocked · {{done}} done",
     stopAll: "Stop all",
     searchPlaceholder: "Search title / ID",
     filterAll: "All statuses",
@@ -71,6 +72,10 @@ const en = {
       origin: "Origin — starting point",
       goal: "Goal — what to achieve",
       bootstrap: "Run bootstrap attempt",
+      maxSteps: "Max steps (optional)",
+      maxStepsPlaceholder: "Unlimited",
+      maxStepsHint:
+        "Caps declared intents. Once the budget is spent and the queue is empty, the project blocks instead of exploring further.",
       hints: "Hints (optional)",
       hintPlaceholder: "Hint content",
       hintCreator: "Hint creator: {{actor}}",
@@ -104,6 +109,15 @@ const en = {
     back: "Back to projects",
     facts: "{{count}} facts",
     intents: "{{count}} intents",
+    maxSteps: {
+      edit: "Edit max steps",
+      progress: "{{count}} / {{max}} steps",
+      blocked: "step limit reached",
+      title: "Max steps",
+      description: "Cap how many intents may be declared in this project.",
+      placeholder: "Unlimited",
+      hint: "Leave empty for no limit. Raising the limit above the current step count resumes a blocked project.",
+    },
     replay: {
       start: "Replay",
       label: "Replay {{current}} / {{total}}",
@@ -215,6 +229,7 @@ const en = {
       hintAdded: "Hint added",
       renamed: "Project renamed",
       reopened: "Project reopened",
+      maxSteps: "Max steps saved",
       deleted: "Deleted {{id}}",
     },
   },
@@ -309,6 +324,7 @@ const en = {
     events: {
       project_created: "Created",
       project_stopped: "Paused",
+      project_blocked: "Blocked",
       project_resumed: "Resumed",
       project_completed: "Completed",
       project_reopened: "Reopened",

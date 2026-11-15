@@ -34,6 +34,7 @@ EVENT_LABELS: dict[str, str] = {
     "project_created": "Project created",
     "project_stopped": "Project paused",
     "project_resumed": "Project resumed",
+    "project_blocked": "Project blocked (step limit reached)",
     "project_completed": "Project completed",
     "project_reopened": "Project reopened",
 }

@@ -33,6 +33,8 @@ UNHEALTHY_RETRY_AFTER_SECONDS = 5
 REJECTED_RETRY_AFTER_SECONDS = 5
 BOOTSTRAP_INTENT_DESCRIPTION = "bootstrap"
 BOOTSTRAP_INTENT_CREATOR = "dispatcher.bootstrap"
+# Blocked projects can still run their outstanding intents and finish, but declare no new ones.
+RUNNABLE_STATUSES = frozenset({"active", "blocked"})
 
 
 def resolve_instance_id() -> str:
@@ -310,9 +312,9 @@ class DispatcherLoop:
                 self._global_running_tasks(),
             )
             return
-        active = [summary for summary in summaries if summary.status == "active"]
+        active = [summary for summary in summaries if summary.status in RUNNABLE_STATUSES]
         if not active:
-            self._log_changed("dispatch/global", logging.INFO, "skip dispatch because no active projects")
+            self._log_changed("dispatch/global", logging.INFO, "skip dispatch because no runnable projects")
             return
 
         running_projects = self._ordered_projects(
@@ -387,7 +389,7 @@ class DispatcherLoop:
             return False
 
         project = self.client.get_project(summary.id)
-        if project.project.status != "active":
+        if project.project.status not in RUNNABLE_STATUSES:
             self._log_changed(
                 f"{skip_scope}:status",
                 logging.INFO,
@@ -751,8 +753,20 @@ class DispatcherLoop:
         }
 
     def _running_project_count(self, summaries: list[ProjectSummary]) -> int:
-        active_ids = {summary.id for summary in summaries if summary.status == "active"}
-        return len(self.runtime_project_ids & active_ids)
+        """Projects occupying a concurrency slot.
+
+        Active projects count as soon as they entered the runtime. A blocked
+        project only counts while it actually has a task running, so an idle
+        blocked project cannot starve new ones.
+        """
+        running_ids = {task.project_id for task in self.futures.values()}
+        count = 0
+        for summary in summaries:
+            if summary.status == "active" and summary.id in self.runtime_project_ids:
+                count += 1
+            elif summary.status == "blocked" and summary.id in running_ids:
+                count += 1
+        return count
 
     def _project_open_intent_count(self, project: ProjectDetail) -> int:
         return sum(1 for intent in project.intents if intent.to is None)
@@ -947,9 +961,13 @@ class DispatcherLoop:
                 LOG.exception("container cleanup failed container=%s", name)
 
     def _refresh_runtime_projects(self, summaries: list[ProjectSummary]) -> None:
-        active_ids = {summary.id for summary in summaries if summary.status == "active"}
+        active_ids = {summary.id for summary in summaries if summary.status in RUNNABLE_STATUSES}
         self.runtime_project_ids.intersection_update(active_ids)
-        inactive_status_by_id = {summary.id: summary.status for summary in summaries if summary.status != "active"}
+        inactive_status_by_id = {
+            summary.id: summary.status
+            for summary in summaries
+            if summary.status not in RUNNABLE_STATUSES
+        }
         for project_id, status in list(self._inactive_cleanup_done.items()):
             current_status = inactive_status_by_id.get(project_id)
             if current_status != status:
@@ -959,7 +977,7 @@ class DispatcherLoop:
         status_by_project = {summary.id: summary.status for summary in summaries}
         for task in self.futures.values():
             status = status_by_project.get(task.project_id, "deleted")
-            if status != "active" and task.cancellation.cancel(status):
+            if status not in RUNNABLE_STATUSES and task.cancellation.cancel(status):
                 LOG.info(
                     "cancelling running task for inactive project project=%s task=%s worker=%s status=%s",
                     task.project_id,
@@ -970,7 +988,7 @@ class DispatcherLoop:
 
     def _initialize_reason_checkpoints(self, summaries: list[ProjectSummary]) -> None:
         for summary in summaries:
-            if summary.status != "active":
+            if summary.status not in RUNNABLE_STATUSES:
                 continue
             if summary.id in self.reason_checkpoints:
                 continue

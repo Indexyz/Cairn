@@ -37,6 +37,7 @@ NotificationEvent = Literal[
     "project_created",
     "project_stopped",
     "project_resumed",
+    "project_blocked",
     "project_completed",
     "project_reopened",
 ]
@@ -137,8 +138,9 @@ class ProjectReason(BaseModel):
 class ProjectMeta(BaseModel):
     id: str
     title: str
-    status: Literal["active", "stopped", "completed"]
+    status: Literal["active", "stopped", "blocked", "completed"]
     bootstrap_enabled: bool
+    max_steps: int | None = None
     created_at: str
     reason: ProjectReason | None = None
 
@@ -188,6 +190,7 @@ class CreateProjectRequest(BaseModel):
     origin: str
     goal: str
     bootstrap_enabled: bool = True
+    max_steps: int | None = Field(default=None, ge=1)
     hints: list[CreateHintInline] | None = None
 
     @field_validator("title", "origin", "goal")
@@ -326,6 +329,12 @@ class UpdateProjectTitleRequest(BaseModel):
         if not text:
             raise ValueError("must not be empty")
         return text
+
+
+class UpdateProjectMaxStepsRequest(BaseModel):
+    """null clears the limit; a number caps the declared intents."""
+
+    max_steps: int | None = Field(default=None, ge=1)
 
 
 class ReopenRequest(BaseModel):

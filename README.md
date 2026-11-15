@@ -77,6 +77,8 @@ Three task types, all executed by the same Worker:
 | **Reason** | Reads the full graph: is the goal met? What should be explored next? | Complete / new Intents / no-op |
 | **Explore** | Claims one Intent, executes the exploration, reports findings | One Fact |
 
+A project can declare an optional **max steps** budget, editable later from its page. Once the declared intents reach the cap, the project stops declaring new ones and is marked **blocked** as soon as its queue drains — outstanding intents still run and the agent may still finish it. Resuming or raising the budget puts it back to work.
+
 System architecture:
 
 ```

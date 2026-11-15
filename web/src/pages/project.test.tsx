@@ -19,6 +19,7 @@ const project = {
     title: "graph",
     status: "active",
     bootstrap_enabled: false,
+    max_steps: null,
     created_at: "2026-01-01T00:00:00Z",
     reason: null,
   },

@@ -23,6 +23,7 @@ const zh_CN: LocaleSchema = {
     status: {
       active: "运行中",
       stopped: "已暂停",
+      blocked: "已阻塞",
       completed: "已完成",
     },
   },
@@ -38,7 +39,7 @@ const zh_CN: LocaleSchema = {
   },
   projects: {
     title: "项目",
-    summary: "{{active}} 运行中 · {{stopped}} 已暂停 · {{done}} 已完成",
+    summary: "{{active}} 运行中 · {{stopped}} 已暂停 · {{blocked}} 已阻塞 · {{done}} 已完成",
     stopAll: "全部暂停",
     searchPlaceholder: "搜索标题 / ID",
     filterAll: "全部状态",
@@ -73,6 +74,9 @@ const zh_CN: LocaleSchema = {
       origin: "起点 — 初始状态",
       goal: "目标 — 要达成的结果",
       bootstrap: "先跑一次 bootstrap",
+      maxSteps: "最大步数（可选）",
+      maxStepsPlaceholder: "不限制",
+      maxStepsHint: "限制可声明的意图数量。预算用尽且队列为空后，项目会被阻塞而不再继续探索。",
       hints: "提示（可选）",
       hintPlaceholder: "提示内容",
       hintCreator: "提示作者：{{actor}}",
@@ -106,6 +110,15 @@ const zh_CN: LocaleSchema = {
     back: "返回项目列表",
     facts: "{{count}} 条事实",
     intents: "{{count}} 条意图",
+    maxSteps: {
+      edit: "修改最大步数",
+      progress: "{{count}} / {{max}} 步",
+      blocked: "已达步数上限",
+      title: "最大步数",
+      description: "限制该项目可声明的意图数量。",
+      placeholder: "不限制",
+      hint: "留空表示不限制。把上限调到当前步数以上会让已阻塞的项目恢复运行。",
+    },
     replay: {
       start: "回放",
       label: "回放 {{current}} / {{total}}",
@@ -217,6 +230,7 @@ const zh_CN: LocaleSchema = {
       hintAdded: "提示已添加",
       renamed: "项目已重命名",
       reopened: "项目已重开",
+      maxSteps: "最大步数已保存",
       deleted: "已删除 {{id}}",
     },
   },
@@ -310,6 +324,7 @@ const zh_CN: LocaleSchema = {
     events: {
       project_created: "创建",
       project_stopped: "暂停",
+      project_blocked: "阻塞",
       project_resumed: "恢复",
       project_completed: "完成",
       project_reopened: "重开",

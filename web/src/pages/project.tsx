@@ -8,6 +8,7 @@ import {
   Copy,
   Download,
   FileCode2,
+  Gauge,
   Lightbulb,
   Maximize2,
   Pause,
@@ -49,9 +50,10 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-const STATUS_BADGE: Record<ProjectStatus, "running" | "paused" | "done"> = {
+const STATUS_BADGE: Record<ProjectStatus, "running" | "paused" | "blocked" | "done"> = {
   active: "running",
   stopped: "paused",
+  blocked: "blocked",
   completed: "done",
 };
 
@@ -184,6 +186,8 @@ export function ProjectPage() {
   const [renameText, setRenameText] = useState("");
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reopenText, setReopenText] = useState("");
+  const [maxStepsOpen, setMaxStepsOpen] = useState(false);
+  const [maxStepsText, setMaxStepsText] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [snapshot, setSnapshot] = useState<string | null>(null);
 
@@ -192,6 +196,9 @@ export function ProjectPage() {
   const replayTimer = useRef<number | null>(null);
 
   const isActive = project?.project.status === "active" && !replay.active;
+  // A blocked project still runs its outstanding intents and can be completed.
+  const isRunnable =
+    (project?.project.status === "active" || project?.project.status === "blocked") && !replay.active;
   const canWriteHints = !replay.active && Boolean(project);
 
   const load = useCallback(
@@ -296,13 +303,13 @@ export function ProjectPage() {
     return project.intents.find((intent) => intent.id === selectedNode.id) ?? null;
   }, [project, selectedNode]);
 
-  const openIntent = selectedIntentRecord && !selectedIntentRecord.to && isActive ? selectedIntentRecord : null;
+  const openIntent = selectedIntentRecord && !selectedIntentRecord.to && isRunnable ? selectedIntentRecord : null;
   const actionableIntent =
     openIntent && (!openIntent.worker || openIntent.worker === actorName) ? openIntent : null;
   const releasableIntent =
     openIntent && openIntent.worker === actorName ? openIntent : null;
 
-  const canActOnFacts = isActive && selectedFacts.length > 0 && !selectedFacts.includes("goal");
+  const canActOnFacts = isRunnable && selectedFacts.length > 0 && !selectedFacts.includes("goal");
 
   function clearSelection() {
     setSelectedNode(null);
@@ -387,6 +394,19 @@ export function ProjectPage() {
       await api("PUT", `/projects/${projectId}/status`, { status: next });
       await load(projectId);
       toast.show(t(next === "stopped" ? "project.toast.stopped" : "project.toast.resumed"));
+    } catch (error) {
+      toast.show((error as Error).message, "error");
+    }
+  }
+
+  async function saveMaxSteps() {
+    try {
+      await api("PUT", `/projects/${projectId}/max_steps`, {
+        max_steps: maxStepsText.trim() ? Number(maxStepsText) : null,
+      });
+      setMaxStepsOpen(false);
+      await load(projectId);
+      toast.show(t("project.toast.maxSteps"));
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -847,6 +867,39 @@ export function ProjectPage() {
           {t("project.facts", { count: project.facts.length })} ·{" "}
           {t("project.intents", { count: project.intents.length })}
         </span>
+        {project.project.status !== "completed" && !replay.active && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title={t("project.maxSteps.edit")}
+            onClick={() => {
+              setMaxStepsText(project.project.max_steps?.toString() ?? "");
+              setMaxStepsOpen(true);
+            }}
+          >
+            <Gauge className="size-3.5" />
+          </Button>
+        )}
+        {project.project.max_steps !== null && (
+          <span
+            className={cn(
+              "text-xs tabular-nums",
+              project.intents.length >= project.project.max_steps
+                ? "font-medium text-rose-600"
+                : "text-muted-foreground",
+            )}
+          >
+            {t("project.maxSteps.progress", {
+              count: project.intents.length,
+              max: project.project.max_steps,
+            })}
+          </span>
+        )}
+        {project.project.status === "blocked" && (
+          <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] text-rose-700">
+            {t("project.maxSteps.blocked")}
+          </span>
+        )}
         <div className="flex-1" />
 
         {!replay.active && (
@@ -974,21 +1027,23 @@ export function ProjectPage() {
 
           <div className="absolute top-14 left-3 z-10 flex flex-col gap-2">
             <div className="flex gap-1.5">
-              {isActive && (
+              {isRunnable && (
                 <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="bg-background/90"
-                    disabled={!canActOnFacts}
-                    onClick={() => {
-                      setIntentText("");
-                      setIntentOpen(true);
-                    }}
-                  >
-                    <Sparkles className="size-3.5" />
-                    {t("project.actions.intent")}
-                  </Button>
+                  {isActive && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="bg-background/90"
+                      disabled={!canActOnFacts}
+                      onClick={() => {
+                        setIntentText("");
+                        setIntentOpen(true);
+                      }}
+                    >
+                      <Sparkles className="size-3.5" />
+                      {t("project.actions.intent")}
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -1019,7 +1074,7 @@ export function ProjectPage() {
                 </Button>
               )}
             </div>
-            {isActive && (
+            {isRunnable && (
               <div className="flex gap-1.5">
                 <Button
                   size="sm"
@@ -1373,6 +1428,29 @@ export function ProjectPage() {
             <Button onClick={renameProject} disabled={!renameText}>
               {t("common.save")}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={maxStepsOpen} onOpenChange={setMaxStepsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("project.maxSteps.title")}</DialogTitle>
+            <DialogDescription>{t("project.maxSteps.description")}</DialogDescription>
+          </DialogHeader>
+          <Input
+            type="number"
+            min={1}
+            value={maxStepsText}
+            placeholder={t("project.maxSteps.placeholder")}
+            onChange={(event) => setMaxStepsText(event.target.value)}
+          />
+          <p className="text-[11px] text-muted-foreground">{t("project.maxSteps.hint")}</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMaxStepsOpen(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button onClick={saveMaxSteps}>{t("common.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

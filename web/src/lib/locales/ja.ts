@@ -23,6 +23,7 @@ const ja: LocaleSchema = {
     status: {
       active: "実行中",
       stopped: "一時停止",
+      blocked: "ブロック",
       completed: "完了",
     },
   },
@@ -38,7 +39,7 @@ const ja: LocaleSchema = {
   },
   projects: {
     title: "プロジェクト",
-    summary: "実行中 {{active}} · 一時停止 {{stopped}} · 完了 {{done}}",
+    summary: "実行中 {{active}} · 一時停止 {{stopped}} · ブロック {{blocked}} · 完了 {{done}}",
     stopAll: "すべて停止",
     searchPlaceholder: "タイトル / ID を検索",
     filterAll: "すべての状態",
@@ -73,6 +74,9 @@ const ja: LocaleSchema = {
       origin: "起点 — 初期状態",
       goal: "目標 — 達成したいこと",
       bootstrap: "bootstrap を先に 1 回実行する",
+      maxSteps: "最大ステップ数（任意）",
+      maxStepsPlaceholder: "無制限",
+      maxStepsHint: "宣言できる意図数を制限します。予算を使い切りキューが空になると、探索を続けずプロジェクトはブロックされます。",
       hints: "ヒント（任意）",
       hintPlaceholder: "ヒントの内容",
       hintCreator: "ヒントの作成者: {{actor}}",
@@ -106,6 +110,15 @@ const ja: LocaleSchema = {
     back: "プロジェクト一覧へ戻る",
     facts: "事実 {{count}} 件",
     intents: "意図 {{count}} 件",
+    maxSteps: {
+      edit: "最大ステップ数を編集",
+      progress: "{{count}} / {{max}} ステップ",
+      blocked: "ステップ上限に到達",
+      title: "最大ステップ数",
+      description: "このプロジェクトで宣言できる意図数を制限します。",
+      placeholder: "無制限",
+      hint: "空欄なら無制限。現在のステップ数より上に引き上げると、ブロックされたプロジェクトは再開します。",
+    },
     replay: {
       start: "リプレイ",
       label: "リプレイ {{current}} / {{total}}",
@@ -217,6 +230,7 @@ const ja: LocaleSchema = {
       hintAdded: "ヒントを追加しました",
       renamed: "プロジェクト名を変更しました",
       reopened: "プロジェクトを再開しました",
+      maxSteps: "最大ステップ数を保存しました",
       deleted: "{{id}} を削除しました",
     },
   },
@@ -310,6 +324,7 @@ const ja: LocaleSchema = {
     events: {
       project_created: "作成",
       project_stopped: "一時停止",
+      project_blocked: "ブロック",
       project_resumed: "再開",
       project_completed: "完了",
       project_reopened: "再オープン",

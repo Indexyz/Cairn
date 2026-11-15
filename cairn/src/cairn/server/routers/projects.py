@@ -16,14 +16,16 @@ from cairn.server.models import (
     ReopenRequest,
     ReopenResponse,
     ReasonClaimRequest,
+    UpdateProjectMaxStepsRequest,
     UpdateProjectTitleRequest,
     UpdateProjectStatusRequest,
 )
 from cairn.server.services import (
     build_intents,
     check_project_completed,
-    check_project_active,
+    check_project_runnable,
     clear_project_reason,
+    enforce_step_limit,
     expire_reason_leases,
     expire_workers,
     get_completion_intent_or_409,
@@ -35,6 +37,7 @@ from cairn.server.services import (
     next_project_id,
     project_meta_from_row,
     project_reason_from_row,
+    step_budget_exhausted,
     utcnow,
     validate_facts_exist,
     validate_goal_not_in_sources,
@@ -64,6 +67,7 @@ def list_projects():
                 title=row["title"],
                 status=row["status"],
                 bootstrap_enabled=bool(row["bootstrap_enabled"]),
+                max_steps=row["max_steps"],
                 created_at=row["created_at"],
                 reason=project_reason_from_row(row),
                 fact_count=row["fact_count"],
@@ -83,8 +87,8 @@ def create_project(body: CreateProjectRequest, background: BackgroundTasks):
         now = utcnow()
 
         conn.execute(
-            "INSERT INTO projects (id, title, status, bootstrap_enabled, created_at) VALUES (?, ?, 'active', ?, ?)",
-            (pid, body.title, body.bootstrap_enabled, now),
+            "INSERT INTO projects (id, title, status, bootstrap_enabled, max_steps, created_at) VALUES (?, ?, 'active', ?, ?, ?)",
+            (pid, body.title, body.bootstrap_enabled, body.max_steps, now),
         )
         conn.execute(
             "INSERT INTO facts (id, project_id, description) VALUES (?, ?, ?)",
@@ -113,6 +117,7 @@ def create_project(body: CreateProjectRequest, background: BackgroundTasks):
                 title=body.title,
                 status="active",
                 bootstrap_enabled=body.bootstrap_enabled,
+                max_steps=body.max_steps,
                 created_at=now,
                 reason=None,
             ),
@@ -149,8 +154,8 @@ def fork_project(
         title = (body.title if body else None) or f"{source['title']} (fork)"
 
         conn.execute(
-            "INSERT INTO projects (id, title, status, bootstrap_enabled, created_at) VALUES (?, ?, 'active', ?, ?)",
-            (pid, title, source["bootstrap_enabled"], now),
+            "INSERT INTO projects (id, title, status, bootstrap_enabled, max_steps, created_at) VALUES (?, ?, 'active', ?, ?, ?)",
+            (pid, title, source["bootstrap_enabled"], source["max_steps"], now),
         )
         conn.execute(
             "INSERT INTO facts (id, project_id, description) VALUES ('origin', ?, ?)",
@@ -185,6 +190,7 @@ def fork_project(
                 title=title,
                 status="active",
                 bootstrap_enabled=bool(source["bootstrap_enabled"]),
+                max_steps=source["max_steps"],
                 created_at=now,
                 reason=None,
             ),
@@ -239,6 +245,34 @@ def update_project_title(project_id: str, body: UpdateProjectTitleRequest):
         return project_meta_from_row(updated)
 
 
+@router.put("/projects/{project_id}/max_steps", response_model=ProjectMeta)
+def update_project_max_steps(
+    project_id: str, body: UpdateProjectMaxStepsRequest, background: BackgroundTasks
+):
+    """Set or clear the intent budget. A blocked project unblocks once it fits."""
+    with get_conn() as conn:
+        row = get_project_or_404(conn, project_id)
+        if row["status"] == "completed":
+            raise HTTPException(409, "Completed projects cannot change max_steps")
+
+        conn.execute("UPDATE projects SET max_steps = ? WHERE id = ?", (body.max_steps, project_id))
+        if row["status"] == "blocked" and not step_budget_exhausted(conn, project_id):
+            conn.execute("UPDATE projects SET status = 'active' WHERE id = ?", (project_id,))
+        elif row["status"] == "active":
+            enforce_step_limit(conn, project_id)
+
+        updated = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+        if updated["status"] != row["status"] and updated["status"] in ("active", "blocked"):
+            notifications.notify(
+                background,
+                conn,
+                "project_resumed" if updated["status"] == "active" else "project_blocked",
+                project_id=project_id,
+                title=updated["title"],
+            )
+        return project_meta_from_row(updated)
+
+
 @router.put("/projects/{project_id}/status", response_model=ProjectMeta)
 def update_project_status(
     project_id: str, body: UpdateProjectStatusRequest, background: BackgroundTasks
@@ -276,7 +310,7 @@ def update_project_status(
 @router.post("/projects/{project_id}/reason/claim", response_model=ProjectMeta)
 def claim_project_reason(project_id: str, body: ReasonClaimRequest):
     with get_conn() as conn:
-        check_project_active(conn, project_id)
+        check_project_runnable(conn, project_id)
         expire_reason_leases(conn, project_id)
         row = get_project_or_404(conn, project_id)
         current_worker = row["reason_worker"]
@@ -304,7 +338,7 @@ def claim_project_reason(project_id: str, body: ReasonClaimRequest):
 @router.post("/projects/{project_id}/reason/heartbeat", response_model=ProjectMeta)
 def heartbeat_project_reason(project_id: str, body: HeartbeatRequest):
     with get_conn() as conn:
-        check_project_active(conn, project_id)
+        check_project_runnable(conn, project_id)
         expire_reason_leases(conn, project_id)
         row = get_project_or_404(conn, project_id)
         current_worker = row["reason_worker"]
@@ -325,7 +359,7 @@ def heartbeat_project_reason(project_id: str, body: HeartbeatRequest):
 @router.post("/projects/{project_id}/reason/release", response_model=ProjectMeta)
 def release_project_reason(project_id: str, body: HeartbeatRequest):
     with get_conn() as conn:
-        check_project_active(conn, project_id)
+        check_project_runnable(conn, project_id)
         expire_reason_leases(conn, project_id)
         row = get_project_or_404(conn, project_id)
         current_worker = row["reason_worker"]
@@ -342,7 +376,7 @@ def release_project_reason(project_id: str, body: HeartbeatRequest):
 @router.post("/projects/{project_id}/complete", response_model=Intent)
 def complete_project(project_id: str, body: CompleteRequest, background: BackgroundTasks):
     with get_conn() as conn:
-        project = check_project_active(conn, project_id)
+        project = check_project_runnable(conn, project_id)
         expire_reason_leases(conn, project_id)
         validate_facts_exist(conn, project_id, body.from_)
         validate_goal_not_in_sources(body.from_)

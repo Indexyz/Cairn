@@ -40,9 +40,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-const STATUS_BADGE: Record<ProjectStatus, "running" | "paused" | "done"> = {
+const STATUS_BADGE: Record<ProjectStatus, "running" | "paused" | "blocked" | "done"> = {
   active: "running",
   stopped: "paused",
+  blocked: "blocked",
   completed: "done",
 };
 
@@ -58,7 +59,14 @@ export function ProjectsPage() {
   const [stopping, setStopping] = useState(false);
 
   const [newOpen, setNewOpen] = useState(false);
-  const [newForm, setNewForm] = useState({ title: "", origin: "", goal: "", bootstrap: true, hints: [""] });
+  const [newForm, setNewForm] = useState({
+    title: "",
+    origin: "",
+    goal: "",
+    bootstrap: true,
+    maxSteps: "",
+    hints: [""],
+  });
 
   const [rename, setRename] = useState<{ id: string; title: string } | null>(null);
   const [reopen, setReopen] = useState<{ id: string; title: string } | null>(null);
@@ -101,6 +109,7 @@ export function ProjectsPage() {
       all: projects.length,
       active: projects.filter((project) => project.status === "active").length,
       stopped: projects.filter((project) => project.status === "stopped").length,
+      blocked: projects.filter((project) => project.status === "blocked").length,
       completed: projects.filter((project) => project.status === "completed").length,
     }),
     [projects],
@@ -114,10 +123,11 @@ export function ProjectsPage() {
         origin: newForm.origin,
         goal: newForm.goal,
         bootstrap_enabled: newForm.bootstrap,
+        max_steps: newForm.maxSteps.trim() ? Number(newForm.maxSteps) : null,
         hints: hints.length > 0 ? hints.map((content) => ({ content, creator: actorName })) : undefined,
       });
       setNewOpen(false);
-      setNewForm({ title: "", origin: "", goal: "", bootstrap: true, hints: [""] });
+      setNewForm({ title: "", origin: "", goal: "", bootstrap: true, maxSteps: "", hints: [""] });
       await load();
       toast.show(t("projects.toast.created"));
       navigate(`/projects/${created.project.id}`);
@@ -233,7 +243,12 @@ export function ProjectsPage() {
         <div>
           <h1 className="text-sm font-semibold">{t("projects.title")}</h1>
           <p className="text-xs text-muted-foreground">
-            {t("projects.summary", { active: counts.active, stopped: counts.stopped, done: counts.completed })}
+            {t("projects.summary", {
+              active: counts.active,
+              stopped: counts.stopped,
+              blocked: counts.blocked,
+              done: counts.completed,
+            })}
           </p>
         </div>
         <div className="flex-1" />
@@ -269,6 +284,7 @@ export function ProjectsPage() {
                   <SelectItem value="all">{t("projects.filterAll")}</SelectItem>
                   <SelectItem value="active">{t("common.status.active")}</SelectItem>
                   <SelectItem value="stopped">{t("common.status.stopped")}</SelectItem>
+                  <SelectItem value="blocked">{t("common.status.blocked")}</SelectItem>
                   <SelectItem value="completed">{t("common.status.completed")}</SelectItem>
                 </SelectContent>
               </Select>
@@ -333,6 +349,9 @@ export function ProjectsPage() {
                     <TableCell className="text-right tabular-nums">{project.fact_count}</TableCell>
                     <TableCell className="text-right tabular-nums">
                       {project.intent_count}
+                      {project.max_steps !== null && (
+                        <span className="text-muted-foreground"> / {project.max_steps}</span>
+                      )}
                       {project.working_intent_count > 0 && (
                         <span className="ml-1 text-amber-600">+{project.working_intent_count}</span>
                       )}
@@ -365,7 +384,7 @@ export function ProjectsPage() {
                             <Square className="size-3.5" />
                           </Button>
                         )}
-                        {project.status === "stopped" && (
+                        {(project.status === "stopped" || project.status === "blocked") && (
                           <Button
                             variant="ghost"
                             size="icon-sm"
@@ -439,6 +458,22 @@ export function ProjectsPage() {
                 onCheckedChange={(checked) => setNewForm((form) => ({ ...form, bootstrap: checked }))}
               />
               <Label>{t("projects.new.bootstrap")}</Label>
+            </div>
+            <div className="grid gap-1">
+              <Label htmlFor="new-max-steps" className="text-xs text-muted-foreground">
+                {t("projects.new.maxSteps")}
+              </Label>
+              <Input
+                id="new-max-steps"
+                type="number"
+                min={1}
+                value={newForm.maxSteps}
+                placeholder={t("projects.new.maxStepsPlaceholder")}
+                onChange={(event) =>
+                  setNewForm((form) => ({ ...form, maxSteps: event.target.value }))
+                }
+              />
+              <p className="text-[11px] text-muted-foreground">{t("projects.new.maxStepsHint")}</p>
             </div>
             <div className="grid gap-2">
               <div className="flex items-center justify-between">

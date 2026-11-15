@@ -95,16 +95,17 @@ def get_project_or_404(conn: sqlite3.Connection, project_id: str) -> sqlite3.Row
     return row
 
 
-def check_project_active(conn: sqlite3.Connection, project_id: str) -> sqlite3.Row:
+def check_project_runnable(conn: sqlite3.Connection, project_id: str) -> sqlite3.Row:
+    """Active or blocked: blocked may still run outstanding intents and complete."""
     row = get_project_or_404(conn, project_id)
-    if row["status"] != "active":
+    if row["status"] not in ("active", "blocked"):
         raise HTTPException(403, f"Project is {row['status']}")
     return row
 
 
 def check_project_hint_writable(conn: sqlite3.Connection, project_id: str) -> sqlite3.Row:
     row = get_project_or_404(conn, project_id)
-    if row["status"] not in ("active", "stopped", "completed"):
+    if row["status"] not in ("active", "stopped", "blocked", "completed"):
         raise HTTPException(403, f"Project is {row['status']}")
     return row
 
@@ -240,6 +241,7 @@ def project_meta_from_row(row: sqlite3.Row) -> ProjectMeta:
         title=row["title"],
         status=row["status"],
         bootstrap_enabled=bool(row["bootstrap_enabled"]),
+        max_steps=row["max_steps"],
         created_at=row["created_at"],
         reason=project_reason_from_row(row),
     )
@@ -257,6 +259,47 @@ def clear_project_reason(conn: sqlite3.Connection, project_id: str) -> None:
         """,
         (project_id,),
     )
+
+
+def count_project_intents(conn: sqlite3.Connection, project_id: str) -> tuple[int, int]:
+    """Return (declared, still open) intent counts for a project."""
+    row = conn.execute(
+        """
+        SELECT COUNT(*) AS declared,
+               COALESCE(SUM(CASE WHEN to_fact_id IS NULL THEN 1 ELSE 0 END), 0) AS open
+        FROM intents WHERE project_id = ?
+        """,
+        (project_id,),
+    ).fetchone()
+    return row["declared"], row["open"]
+
+
+def step_budget_exhausted(conn: sqlite3.Connection, project_id: str) -> bool:
+    """True when the project has a max_steps budget and has spent it."""
+    row = conn.execute("SELECT max_steps FROM projects WHERE id = ?", (project_id,)).fetchone()
+    if row is None or row["max_steps"] is None:
+        return False
+    declared, _ = count_project_intents(conn, project_id)
+    return declared >= row["max_steps"]
+
+
+def enforce_step_limit(conn: sqlite3.Connection, project_id: str) -> bool:
+    """Block an active project whose intent budget is spent and fully drained.
+
+    An open intent is never cut off: the project blocks once the last one is
+    concluded, so a spent budget stops new exploration without losing work.
+    """
+    row = conn.execute(
+        "SELECT status, max_steps FROM projects WHERE id = ?", (project_id,)
+    ).fetchone()
+    if row is None or row["status"] != "active" or row["max_steps"] is None:
+        return False
+    declared, open_count = count_project_intents(conn, project_id)
+    if declared < row["max_steps"] or open_count > 0:
+        return False
+    conn.execute("UPDATE projects SET status = 'blocked' WHERE id = ?", (project_id,))
+    clear_project_reason(conn, project_id)
+    return True
 
 
 def expire_workers(conn: sqlite3.Connection, project_id: str | None = None) -> None:

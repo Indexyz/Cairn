@@ -38,11 +38,14 @@ Fact 只增不改，状态变化通过追加新 Fact 表达。例如在多层网
 
 一个有明确起点和终点的问题实例，包含完整的图数据。
 
-三种状态：
+四种状态：
 
 - `active`：进行中，接受探索写操作
 - `stopped`：硬停止，不接受探索写操作，可恢复为 `active`
+- `blocked`：步数预算耗尽后的自动停止，不再接受新 Intent，但仍允许已声明 Intent 结论、reason 与 complete；可恢复为 `active`，也可调高 `max_steps` 自动解除
 - `completed`：当前已完成，不接受探索写操作；若外部确认之前的完成判断有误，可显式调用 `reopen` 撤销完成态并继续
+
+`blocked` 由 Server 自动写入，不由 `PUT /status` 直接设置。项目一旦进入 `blocked`，dispatcher 视为可继续运行（以便跑完未结论的 Intent 并做最后一次 reason / complete 判断），但任何新建 Intent 都会因预算耗尽被拒。
 
 ### Fact
 
@@ -103,8 +106,9 @@ Hint 代表外部补充的高纬输入，不属于探索执行本身。因此项
 ```
 id
 title           # 项目名称
-status          # "active" | "stopped" | "completed"
+status          # "active" | "stopped" | "blocked" | "completed"
 bootstrap_enabled  # 是否允许消费者在初始态运行 bootstrap，默认 true
+max_steps       # 可选的 Intent 步数预算，null 表示不限制
 created_at
 reason          # 当前项目级 reason lease，null 表示当前无人执行 reason
 ```
@@ -190,7 +194,8 @@ updated_at
 | --- | --- |
 | `project_created` | 创建或 fork 项目 |
 | `project_stopped` | `active` → `stopped` |
-| `project_resumed` | `stopped` → `active` |
+| `project_resumed` | `stopped` / `blocked` → `active` |
+| `project_blocked` | 步数预算耗尽且未结论 Intent 全部结后自动置 `blocked` |
 | `project_completed` | `complete` 成功 |
 | `project_reopened` | `reopen` 成功 |
 
@@ -416,7 +421,7 @@ Body：
 
 #### POST /projects
 
-创建新项目。`origin` 和 `goal` 写入 `facts` 作为特殊 Fact。`hints` 可选。`bootstrap_enabled` 可选，默认为 `true`；为 `false` 时消费者跳过 bootstrap。即使为 `true`，消费者没有 bootstrap 能力时也可直接进入 reason。
+创建新项目。`origin` 和 `goal` 写入 `facts` 作为特殊 Fact。`hints` 可选。`bootstrap_enabled` 可选，默认为 `true`；为 `false` 时消费者跳过 bootstrap。即使为 `true`，消费者没有 bootstrap 能力时也可直接进入 reason。`max_steps` 可选，为正整数时限制该项目可声明的 Intent 总数，`null` 或缺省表示不限制。
 
 Body：
 
@@ -426,6 +431,7 @@ Body：
   "origin": "目标 http://192.168.1.10",
   "goal": "拿到 flag",
   "bootstrap_enabled": true,
+  "max_steps": 20,
   "hints": [
     { "content": "优先看 web 服务", "creator": "human" },
     { "content": "注意 80 端口", "creator": "human" }
@@ -437,7 +443,7 @@ Body：
 
 #### POST /projects/{project_id}/fork
 
-以源项目的 `origin`、`goal`、`hints` 和 `bootstrap_enabled` 新建一个项目。不复制事实（除 `origin`/`goal`）与意图，hint id 按新项目重新编号，内容与作者保留，创建时间取当前时间。源项目不存在返回 `404`。
+以源项目的 `origin`、`goal`、`hints`、`bootstrap_enabled` 和 `max_steps` 新建一个项目。不复制事实（除 `origin`/`goal`）与意图，hint id 按新项目重新编号，内容与作者保留，创建时间取当前时间。源项目不存在返回 `404`。
 
 Body（可省略）：
 
@@ -542,7 +548,7 @@ Body：
 
 #### PUT /projects/{project_id}/status
 
-更新项目状态。仅允许 `active` 和 `stopped` 之间切换。`completed` 项目不可通过该接口再次变更状态；若需要撤销完成态，必须调用专用的 `reopen` 接口。该接口属于项目管理操作，不属于探索写操作。
+更新项目状态。仅允许 `active` 和 `stopped` 之间切换。`completed` 项目不可通过该接口再次变更状态；若需要撤销完成态，必须调用专用的 `reopen` 接口。`blocked` 可以通过该接口恢复到 `active` 或切到 `stopped`。该接口属于项目管理操作，不属于探索写操作。
 
 当项目切到 `stopped` 时，Server 会立即把所有尚无结论的 Intent 的 `worker` 清空为 `null`，并把 `project.reason` 清空，使这些 claim 立刻失效。这样项目恢复后可以马上重新认领，不必等待超时。`stopped` 的语义是硬停止：Server 负责拒绝后续探索写操作并清空 open intent claim / reason lease；消费者拿到这个信号后应立刻取消本地仍在运行的任务，并停止对应项目容器。
 
@@ -570,11 +576,29 @@ Body：
 
 ---
 
+#### PUT /projects/{project_id}/max_steps
+
+设置或清除项目的 Intent 步数预算。`max_steps` 为正整数，`null` 表示不限制。`completed` 项目返回 `409`。
+
+如果项目因预算耗尽处于 `blocked`，且新上限大于当前已声明的 Intent 数（或改为不限制），项目自动回到 `active`；反之，若 `active` 项目修改上限后已无未结论 Intent，则立即置为 `blocked`。
+
+Body：
+
+```json
+{
+  "max_steps": 40
+}
+```
+
+响应为更新后的项目元数据。若此次修改使状态变为 `blocked` 或解除 `blocked`，会分别发出 `project_blocked` / `project_resumed` 通知。
+
+---
+
 #### POST /projects/{project_id}/reason/claim
 
 认领项目级 `reason` lease。它不属于图，不产生 Intent/Fact，只表示“当前有人正在对整个项目做一次 `reason` 判断”。单个项目同一时刻最多只能有一个 `reason` lease。
 
-若当前 `project.reason` 为空，则 claim 成功并写入 `worker`、`trigger`、`started_at`、`last_heartbeat_at`。若当前已被其他消费者占用且未超时，返回 409。若当前已被同一 `worker` 占用，则幂等返回当前状态。该接口属于探索写操作，仅 `active` 项目允许；`stopped` 或 `completed` 返回 403。
+若当前 `project.reason` 为空，则 claim 成功并写入 `worker`、`trigger`、`started_at`、`last_heartbeat_at`。若当前已被其他消费者占用且未超时，返回 409。若当前已被同一 `worker` 占用，则幂等返回当前状态。该接口属于探索写操作，仅 `active` 或 `blocked` 项目允许；`stopped` 或 `completed` 返回 403。
 
 Body：
 
@@ -606,7 +630,7 @@ Body：
 
 #### POST /projects/{project_id}/reason/heartbeat
 
-当前 `worker` 对项目级 `reason` lease 续约，更新 `last_heartbeat_at`。仅当前持有该 lease 的 `worker` 可以续约；若当前无人持有，返回 409；若被其他消费者占用且未超时，返回 409。该接口属于探索写操作，仅 `active` 项目允许；`stopped` 或 `completed` 返回 403。
+当前 `worker` 对项目级 `reason` lease 续约，更新 `last_heartbeat_at`。仅当前持有该 lease 的 `worker` 可以续约；若当前无人持有，返回 409；若被其他消费者占用且未超时，返回 409。该接口属于探索写操作，仅 `active` 或 `blocked` 项目允许；`stopped` 或 `completed` 返回 403。
 
 Body：
 
@@ -620,7 +644,7 @@ Body：
 
 #### POST /projects/{project_id}/reason/release
 
-当前 `worker` 主动释放项目级 `reason` lease，使其立刻回到无人执行 `reason` 的状态。仅当前持有者本人可以释放；若当前已为空，则幂等返回当前状态；若被其他消费者占用且未超时，返回 409。该接口属于探索写操作，仅 `active` 项目允许；`stopped` 或 `completed` 返回 403。
+当前 `worker` 主动释放项目级 `reason` lease，使其立刻回到无人执行 `reason` 的状态。仅当前持有者本人可以释放；若当前已为空，则幂等返回当前状态；若被其他消费者占用且未超时，返回 409。该接口属于探索写操作，仅 `active` 或 `blocked` 项目允许；`stopped` 或 `completed` 返回 403。
 
 Body：
 
@@ -653,7 +677,9 @@ Body：
 
 #### POST /projects/{project_id}/intents
 
-从某个 Fact 出发声明探索意图，产生一条尚无结论的 Intent。可选择只声明，或声明并同时认领。Intent 属于探索写操作，仅 `active` 项目允许；`stopped` 或 `completed` 返回 403。
+从某个 Fact 出发声明探索意图，产生一条尚无结论的 Intent。可选择只声明，或声明并同时认领。Intent 属于探索写操作，仅 `active` 或 `blocked` 项目允许；`stopped` 或 `completed` 返回 403。
+
+当项目设置了 `max_steps` 且已声明的 Intent 数已达上限时，返回 `403`，并在已无未结论 Intent 时把项目置为 `blocked`。`blocked` 项目仍可对已有未结论 Intent 做 heartbeat / conclude，也可 complete，但不能声明新 Intent。
 
 Body：
 
@@ -687,7 +713,7 @@ Body：
 
 #### POST /projects/{project_id}/intents/{intent_id}/heartbeat
 
-消费者上报存活，更新 `worker` 和 `last_heartbeat_at`。仅对尚无结论的 Intent 有效。该接口用于续约，或在某条 Intent 已超时变为未认领后重新接手。若当前 `worker` 为 `null`，任意消费者可通过 heartbeat 认领；若当前 `worker` 已被其他消费者占用且未超时，返回 409。Heartbeat 属于探索写操作，仅 `active` 项目允许；`stopped` 或 `completed` 返回 403。
+消费者上报存活，更新 `worker` 和 `last_heartbeat_at`。仅对尚无结论的 Intent 有效。该接口用于续约，或在某条 Intent 已超时变为未认领后重新接手。若当前 `worker` 为 `null`，任意消费者可通过 heartbeat 认领；若当前 `worker` 已被其他消费者占用且未超时，返回 409。Heartbeat 属于探索写操作，仅 `active` 或 `blocked` 项目允许；`stopped` 或 `completed` 返回 403。
 
 消费者通常会按固定心跳周期继续 heartbeat 或轮询项目；项目进入 `stopped` 或 `completed` 后，继续 heartbeat 会返回 403，而轮询读取会看到项目 `status` 变化。由于 Server 在 `stopped` 时会立即清空 open intent 的 `worker`，消费者应把它当作硬停止信号，尽快终止本地推进，而不是继续依赖旧 claim。
 
@@ -703,7 +729,7 @@ Body：
 
 #### POST /projects/{project_id}/intents/{intent_id}/release
 
-当前 `worker` 主动释放一条尚无结论的 Intent，使其回到未认领状态，供其他消费者立即接手。仅当前 `worker` 本人可以释放；若被其他消费者占用且未超时，返回 409。若该 Intent 当前已未认领，则幂等返回当前状态。`last_heartbeat_at` 保留，不清空。Release 属于探索写操作，仅 `active` 项目允许；`stopped` 或 `completed` 返回 403。
+当前 `worker` 主动释放一条尚无结论的 Intent，使其回到未认领状态，供其他消费者立即接手。仅当前 `worker` 本人可以释放；若被其他消费者占用且未超时，返回 409。若该 Intent 当前已未认领，则幂等返回当前状态。`last_heartbeat_at` 保留，不清空。Release 属于探索写操作，仅 `active` 或 `blocked` 项目允许；`stopped` 或 `completed` 返回 403。
 
 Body：
 
@@ -719,7 +745,7 @@ Body：
 
 #### POST /projects/{project_id}/intents/{intent_id}/conclude
 
-探索结束，产出新 Fact 并将 Intent 结论落定。原子操作。仅对尚无结论的 Intent 有效。claim 规则与 heartbeat 相同：未认领可直接 conclude；由当前 `worker` conclude；若被其他消费者占用且未超时，返回 409。Conclude 属于探索写操作，仅 `active` 项目允许；`stopped` 或 `completed` 返回 403。
+探索结束，产出新 Fact 并将 Intent 结论落定。原子操作。仅对尚无结论的 Intent 有效。claim 规则与 heartbeat 相同：未认领可直接 conclude；由当前 `worker` conclude；若被其他消费者占用且未超时，返回 409。Conclude 属于探索写操作，仅 `active` 或 `blocked` 项目允许；`stopped` 或 `completed` 返回 403。
 
 `worker` 写入后永久保留，标识本次结论由谁产出。
 
@@ -758,7 +784,7 @@ Body：
 
 #### POST /projects/{project_id}/complete
 
-消费者判断某些 Facts 共同满足 goal 后调用，声明项目完成。原子操作。Complete 属于探索写操作，仅 `active` 项目允许；`stopped` 或 `completed` 返回 403。
+消费者判断某些 Facts 共同满足 goal 后调用，声明项目完成。原子操作。Complete 属于探索写操作，仅 `active` 或 `blocked` 项目允许；`stopped` 或 `completed` 返回 403。
 
 创建一条 `from` 指向所列 Facts、`to` 指向 `goal` 的已结论 Intent。完成声明无探索过程，服务端将 `creator` 和 `worker` 均设为请求中的 `worker` 值。Project 状态变为 `completed`，并立即清空当前 `project.reason`。
 

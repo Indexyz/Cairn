@@ -248,6 +248,29 @@ def test_initial_enabled_project_keeps_existing_bootstrap_intent_when_workers_ch
     assert loop._project_requires_bootstrap(project)
 
 
+def test_blocked_projects_stay_runnable_for_outstanding_tasks() -> None:
+    loop = _loop()
+    loop.runtime_project_ids = {"blocked"}
+    cancellation = TaskCancellation()
+    loop.futures = {Future(): RunningTask("blocked", "explore", "worker", cancellation)}
+
+    loop._refresh_runtime_projects([_summary("blocked", "blocked")])
+    loop._cancel_inactive_tasks([_summary("blocked", "blocked")])
+
+    assert loop.runtime_project_ids == {"blocked"}
+    assert cancellation.reason is None
+
+
+def test_running_project_count_ignores_idle_blocked_projects() -> None:
+    loop = _loop()
+    loop.runtime_project_ids = {"busy", "idle"}
+    loop.futures = {Future(): RunningTask("busy", "explore", "worker", TaskCancellation())}
+
+    summaries = [_summary("busy", "active"), _summary("idle", "blocked")]
+
+    assert loop._running_project_count(summaries) == 1
+
+
 def test_cancel_inactive_tasks_marks_stopped_and_deleted_projects() -> None:
     loop = _loop()
     stopped = TaskCancellation()
