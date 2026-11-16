@@ -34,4 +34,4 @@ services:
       cairn-server:
         condition: service_healthy
     restart: unless-stopped
-    command: ["uv", "run", "cairn", "dispatch", "--config", "dispatch.yaml"]
+    command: ["cairn-dispatcher", "--config", "dispatch.yaml"]

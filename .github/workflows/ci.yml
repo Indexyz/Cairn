@@ -33,6 +33,39 @@ jobs:
         working-directory: cairn
         run: uv run --frozen pytest -q
 
+  go:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: dispatcher/go.mod
+          cache-dependency-path: dispatcher/go.sum
+
+      - name: Check formatting
+        working-directory: dispatcher
+        run: test -z "$(gofmt -l .)"
+
+      - name: Vet
+        working-directory: dispatcher
+        run: go vet ./...
+
+      - name: Run tests
+        working-directory: dispatcher
+        run: go test -race ./...
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+
+      - name: Run end-to-end parity test against the Python server
+        working-directory: dispatcher
+        run: go test ./e2e -timeout 300s
+
   web:
     runs-on: ubuntu-24.04
     steps:

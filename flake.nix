@@ -23,6 +23,7 @@
           packages = {
             inherit cairn;
             web = cairn.web;
+            dispatcher = cairn.passthru.dispatcher;
             default = cairn;
           };
 
@@ -30,6 +31,7 @@
             packages = [
               pkgs.python3
               pkgs.uv
+              pkgs.go
               pkgs.nodejs_22
             ];
           };

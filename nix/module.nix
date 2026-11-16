@@ -526,8 +526,7 @@ in
           SupplementaryGroups = optional useDocker "docker";
           WorkingDirectory = cfg.stateDir;
           ExecStart = lib.escapeShellArgs [
-            "${cfg.package}/bin/cairn"
-            "dispatch"
+            "${cfg.package}/bin/cairn-dispatcher"
             "--config"
             dispatcherConfigFile'
             "--log-level"

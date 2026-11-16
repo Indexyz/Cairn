@@ -2,6 +2,7 @@
 , stdenv
 , python3
 , nodejs_22
+, buildGoModule
 , buildNpmPackage
 , writeShellApplication
 ,
@@ -9,6 +10,19 @@
 
 let
   version = (builtins.fromTOML (builtins.readFile ../cairn/pyproject.toml)).project.version;
+
+  dispatcher = buildGoModule {
+    pname = "cairn-dispatcher";
+    inherit version;
+    src = ../dispatcher;
+    vendorHash = "sha256-Zj8VxAA11BXxvZUf9YewHkEEcI24sS8vPu22iu4LdWc=";
+    subPackages = [ "cmd/cairn-dispatcher" ];
+    ldflags = [ "-s" "-w" ];
+    meta = {
+      description = "Cairn dispatcher (Go)";
+      mainProgram = "cairn-dispatcher";
+    };
+  };
 
   python = python3.withPackages (
     ps:
@@ -78,24 +92,38 @@ let
       runHook postInstall
     '';
   };
+
+  cairnScript = writeShellApplication {
+    name = "cairn";
+    runtimeInputs = [ python ];
+    text = ''
+      export PYTHONPATH="${app}:''${PYTHONPATH:-}"
+      exec python -c 'import sys; from cairn.cli import main; sys.exit(main())' "$@"
+    '';
+  };
 in
-(writeShellApplication {
-  name = "cairn";
-  runtimeInputs = [ python ];
-  text = ''
-    export PYTHONPATH="${app}:''${PYTHONPATH:-}"
-    exec python -c 'import sys; from cairn.cli import main; sys.exit(main())' "$@"
+stdenv.mkDerivation {
+  pname = "cairn";
+  inherit version;
+  dontUnpack = true;
+
+  installPhase = ''
+    runHook preInstall
+    mkdir -p $out/bin
+    install -m755 ${dispatcher}/bin/cairn-dispatcher $out/bin/cairn-dispatcher
+    install -m755 ${cairnScript}/bin/cairn $out/bin/cairn
+    runHook postInstall
   '';
-}).overrideAttrs
-  (old: {
-    passthru = (old.passthru or { }) // {
-      inherit web app;
-    };
-    meta = {
-      description = "Fact-graph based collaborative exploration protocol";
-      homepage = "https://github.com/oritera/Cairn";
-      license = lib.licenses.asl20;
-      mainProgram = "cairn";
-      platforms = lib.platforms.linux;
-    };
-  })
+
+  passthru = {
+    inherit web app dispatcher;
+  };
+
+  meta = {
+    description = "Fact-graph based collaborative exploration protocol";
+    homepage = "https://github.com/oritera/Cairn";
+    license = lib.licenses.asl20;
+    mainProgram = "cairn";
+    platforms = lib.platforms.linux;
+  };
+}

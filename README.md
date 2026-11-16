@@ -182,14 +182,18 @@ npm --prefix web run build
 # Start the server
 uv run --project cairn cairn serve
 
-# Run the dispatcher
-uv run --project cairn cairn dispatch --config dispatch.yaml
+# Run the dispatcher (Go)
+go run ./dispatcher/cmd/cairn-dispatcher --config dispatch.yaml
 
 # Run startup health checks only
-uv run --project cairn cairn dispatch --config dispatch.yaml --startup-healthcheck-only
+go run ./dispatcher/cmd/cairn-dispatcher --config dispatch.yaml --startup-healthcheck-only
 ```
 
 For UI work, run `npm --prefix web run dev` instead of building; Vite proxies the API to `127.0.0.1:8000`.
+
+### Dispatcher implementation
+
+The dispatcher is a Go binary (`dispatcher/`), built as `cairn-dispatcher`; the Nix package, NixOS module, container image and `docker compose` all ship it. The server is still Python — the two only talk over the documented HTTP protocol, so they upgrade independently. `uv run --project cairn cairn dispatch` keeps working as the former Python dispatcher while the port settles.
 
 ### Model list
 
@@ -232,7 +236,7 @@ cp dispatch.local.example.yaml dispatch.yaml
 uv run --project cairn cairn serve
 
 # Run the dispatcher on the same host, where the CLIs are installed and logged in
-uv run --project cairn cairn dispatch --config dispatch.yaml
+go run ./dispatcher/cmd/cairn-dispatcher --config dispatch.yaml
 ```
 
 Local mode is selected by `runtime.execution: local` (see `dispatch.local.example.yaml`). On startup the dispatcher checks each configured worker CLI is installed and runnable, and reminds you they must already be logged in. Each project gets an isolated working directory under `local.workspace_root` (default: the dispatcher's current directory). Run the dispatcher directly on the host — not inside Docker — since the agents run with your user's permissions and no sandbox.
