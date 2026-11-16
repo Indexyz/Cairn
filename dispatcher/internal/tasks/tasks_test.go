@@ -2,6 +2,8 @@ package tasks
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -303,5 +305,81 @@ func TestReasonCompletePathMarksProject(t *testing.T) {
 
 	if outcome != "success" || len(client.completed) != 1 || client.completed[0] != "done <- f001" {
 		t.Fatalf("outcome=%q completed=%v", outcome, client.completed)
+	}
+}
+
+func localClientProject() (*fakeClient, *protocol.ProjectDetail) {
+	project := testProject()
+	return &fakeClient{project: project}, project
+}
+
+func localConfig() *config.DispatchConfig {
+	dispatch := testConfig()
+	dispatch.Runtime.Execution = config.ExecutionLocal
+	dispatch.Runtime.WorkerHealthcheck = config.HealthcheckDisabled
+	dispatch.Workers[0].Type = config.WorkerClaudeCode
+	return dispatch
+}
+
+func installFakeCLI(t *testing.T, name, body string) {
+	t.Helper()
+	binDir := t.TempDir()
+	script := "#!/bin/sh\n" + body + "\n"
+	path := binDir + "/" + name
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake cli: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func TestExploreRunsRealLocalCLIEndToEnd(t *testing.T) {
+	installFakeCLI(t, "claude", `echo '{"accepted":true,"data":{"description":"local fake fact"}}'`)
+	root := t.TempDir()
+	GraphSnapshotRoot = root
+	t.Cleanup(func() { GraphSnapshotRoot = "/tmp/cairn-prompts" })
+
+	dispatch := localConfig()
+	client, project := localClientProject()
+	workspace := t.TempDir()
+	backend := runtime.NewLocalBackend(&config.LocalConfig{WorkspaceRoot: &workspace})
+
+	outcome := RunExploreTask(dispatch, client, backend, project, "facts:\n- id: f001\n", &project.Intents[0], &dispatch.Workers[0], &runtime.TaskCancellation{})
+
+	if outcome != "success" {
+		t.Fatalf("outcome = %q", outcome)
+	}
+	if len(client.concluded) != 1 || client.concluded[0] != "local fake fact" {
+		t.Fatalf("concluded = %v", client.concluded)
+	}
+	found := false
+	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err == nil && info != nil && info.Name() == "graph.yaml" {
+			found = true
+		}
+		return nil
+	})
+	if !found {
+		t.Fatalf("graph snapshot not materialised under %s", root)
+	}
+}
+
+func TestExploreLocalCLIRejectionReleasesIntent(t *testing.T) {
+	installFakeCLI(t, "claude", `echo '{"accepted":false,"reason":"policy_refusal"}'`)
+	root := t.TempDir()
+	GraphSnapshotRoot = root
+	t.Cleanup(func() { GraphSnapshotRoot = "/tmp/cairn-prompts" })
+
+	dispatch := localConfig()
+	client, project := localClientProject()
+	workspace := t.TempDir()
+	backend := runtime.NewLocalBackend(&config.LocalConfig{WorkspaceRoot: &workspace})
+
+	outcome := RunExploreTask(dispatch, client, backend, project, "facts:\n- id: f001\n", &project.Intents[0], &dispatch.Workers[0], &runtime.TaskCancellation{})
+
+	if outcome != "rejected" {
+		t.Fatalf("outcome = %q", outcome)
+	}
+	if len(client.concluded) != 0 || len(client.released) != 1 {
+		t.Fatalf("concluded=%v released=%v", client.concluded, client.released)
 	}
 }

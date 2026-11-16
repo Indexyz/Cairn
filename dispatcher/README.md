@@ -15,15 +15,15 @@ the result is one static binary instead of a Python runtime.
 
 | Path | Mirrors |
 | --- | --- |
-| `internal/config` | `cairn/dispatcher/config.py` |
-| `internal/contracts`, `internal/outputparser` | `contracts.py`, `output_parser.py` |
-| `internal/protocol` | `protocol/client.py` |
-| `internal/workers`, `internal/workers/adapters` | `workers/*`, `workers/adapters/*` |
-| `internal/runtime` | `runtime/*` (backends, cancellation, heartbeat, healthchecks) |
-| `internal/tasks` | `tasks/{bootstrap,explore,reason,common}.py` |
-| `internal/scheduler` | `scheduler/loop.py`, `scheduler/worker_select.py` |
-| `internal/prompting/prompts` | bundled `cairn/src/cairn/dispatcher/prompts/*` (kept byte-identical; a test enforces it) |
-| `e2e` | `tests/test_mock_end_to_end.py` (runs against the real Python server) |
+| `internal/config` | dispatch.yaml schema and `MOCK_*` rules |
+| `internal/contracts`, `internal/outputparser` | stage payload contracts and JSON extraction |
+| `internal/protocol` | server HTTP client |
+| `internal/workers`, `internal/workers/adapters` | driver registry and the four CLIs |
+| `internal/runtime` | backends, cancellation, heartbeat, healthchecks |
+| `internal/tasks` | bootstrap, explore, reason |
+| `internal/scheduler` | dispatch loop and worker selection |
+| `internal/prompting/prompts` | embedded prompt groups (`default`, `mock`) |
+| `e2e` | live-server parity runs (local and container) |
 
 ## Build, run, test
 

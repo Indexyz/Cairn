@@ -6,7 +6,7 @@ import time
 
 from fastapi import APIRouter, HTTPException, Query
 
-from cairn.dispatcher.workers.registry import get_driver
+from cairn.server import health
 from cairn.server.db import get_conn
 from cairn.server.models import (
     LoadSnapshot,
@@ -161,10 +161,9 @@ def test_model(name: str, timeout: float = Query(default=10.0, gt=0, le=60)):
     with get_conn() as conn:
         model = _require_model(conn, name)
 
-    driver = get_driver(model.type)
     started = time.perf_counter()
     try:
-        result = driver.check_health(model, timeout=timeout)
+        result = health.check_model(model, timeout)
     except KeyError as exc:
         raise HTTPException(422, f"model {name} is missing env key {exc.args[0]}") from exc
     except ValueError as exc:
@@ -175,6 +174,6 @@ def test_model(name: str, timeout: float = Query(default=10.0, gt=0, le=60)):
         ok=result.ok,
         status=result.status,
         detail=result.detail,
-        endpoint=driver.describe_health(model),
+        endpoint=health.describe_model(model),
         duration_ms=duration_ms,
     )

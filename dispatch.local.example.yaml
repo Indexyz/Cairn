@@ -5,7 +5,7 @@
 # Usage:
 #   cp dispatch.local.example.yaml dispatch.yaml
 #   uv run --project cairn cairn serve                       # in one shell
-#   uv run --project cairn cairn dispatch --config dispatch.yaml
+#   go run ./dispatcher/cmd/cairn-dispatcher --config dispatch.yaml
 #
 # Notes:
 # - Do NOT run the dispatcher via docker-compose in local mode: it must run on the host

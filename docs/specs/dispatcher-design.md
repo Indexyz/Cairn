@@ -171,30 +171,19 @@ Dispatcher 使用一个运行期配置文件：
 
 ```text
 dispatcher/
-  models.py
-  prompting.py
-  output_parser.py
-  contracts.py
-  prompts/
-    default/
-      bootstrap.md
-      bootstrap_conclude.md
-      reason.md
-      explore.md
-      explore_conclude.md
-    mock/
-      bootstrap.md
-      bootstrap_conclude.md
-      reason.md
-      explore.md
-      explore_conclude.md
-  workers/
-    base.py
-    registry.py
-    adapters/
-      claudecode.py
-      codex.py
-      mock.py
+  cmd/cairn-dispatcher/       # CLI
+  internal/config/            # dispatch.yaml + mock 规则校验
+  internal/contracts/         # 阶段输出契约
+  internal/output_parser/     # 从噪声中提取 JSON
+  internal/prompting/
+    prompts/                  # 内嵌 prompt（default / mock）
+  internal/protocol/          # server HTTP 客户端
+  internal/workers/
+    registry/                 # type -> driver，区分本地/容器
+    adapters/                 # claudecode / codex / pi / mock
+  internal/runtime/           # 后端、取消、心跳、健康检查
+  internal/tasks/             # bootstrap / reason / explore
+  internal/scheduler/         # 调度循环
 ```
 
 本文档附录给出：

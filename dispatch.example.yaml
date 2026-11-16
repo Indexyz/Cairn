@@ -23,7 +23,7 @@ runtime:
   # "startup_and_task" checks at dispatcher startup and before every task.
   # "startup_only" checks only at startup. "disabled" skips automatic worker checks.
   worker_healthcheck: "startup_only"
-  # Prompt set loaded from cairn/src/cairn/dispatcher/prompts/.
+  # Prompt set embedded in the dispatcher binary.
   prompt_group: "default"
 
 tasks:

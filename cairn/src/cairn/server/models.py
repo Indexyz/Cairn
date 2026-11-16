@@ -2,17 +2,57 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from cairn.dispatcher.config import WorkerConfig
 from cairn.server import notifications
+from cairn.server.mock_behavior import resolve_mock_behavior
+
+WorkerType = Literal["claudecode", "codex", "pi", "mock"]
+TaskType = Literal["reason", "explore", "bootstrap"]
 
 
-class WorkerModel(WorkerConfig):
+class WorkerModel(BaseModel):
     """Worker model entry persisted in the database."""
 
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    type: WorkerType
+    task_types: list[TaskType]
+    max_running: int = Field(gt=0)
+    priority: int = Field(ge=0)
+    env: dict[str, str] = Field(default_factory=dict)
     # Live value derived from claimed leases; never stored in the database.
     used: int = 0
+
+    @field_validator("task_types")
+    @classmethod
+    def validate_task_types(cls, value: list[TaskType]) -> list[TaskType]:
+        if not value:
+            raise ValueError("task_types must not be empty")
+        if len(set(value)) != len(value):
+            raise ValueError("task_types must be unique")
+        return value
+
+    @model_validator(mode="after")
+    def validate_env(self) -> "WorkerModel":
+        if self.type == "pi":
+            _validate_optional_positive_int_env(self.name, self.env, "PI_MODEL_CONTEXT_WINDOW")
+        if self.type == "mock":
+            resolve_mock_behavior(self.name, self.env)
+        return self
+
+
+def _validate_optional_positive_int_env(worker_name: str, env: dict[str, str], key: str) -> None:
+    value = env.get(key)
+    if value is None or not value.strip():
+        return
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise ValueError(f"worker {worker_name} env {key} must be an integer") from exc
+    if parsed <= 0:
+        raise ValueError(f"worker {worker_name} env {key} must be greater than 0")
 
 
 class ModelTestResult(BaseModel):

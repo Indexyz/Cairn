@@ -16,8 +16,10 @@ import (
 const (
 	processCommunicateGrace = 15
 	logPreviewLimit         = 1200
-	graphSnapshotRoot       = "/tmp/cairn-prompts"
 )
+
+// GraphSnapshotRoot is where graph snapshots are materialised; tests override it.
+var GraphSnapshotRoot = "/tmp/cairn-prompts"
 
 var log = logging.New("cairn.dispatcher.tasks")
 
@@ -66,7 +68,7 @@ func TaskHealthcheckEnabled(dispatch *config.DispatchConfig) bool {
 // WriteGraphSnapshotReference writes the graph YAML into the backend and returns
 // the prompt paragraph that points at it.
 func WriteGraphSnapshotReference(manager Backend, containerName, graphYAML, phase string) (string, error) {
-	path := graphSnapshotRoot + "/" + phase + "-" + strings.ToLower(uuid.NewString()[:12]) + "/graph.yaml"
+	path := GraphSnapshotRoot + "/" + phase + "-" + strings.ToLower(uuid.NewString()[:12]) + "/graph.yaml"
 	if err := manager.WriteTextFile(containerName, path, graphYAML); err != nil {
 		return "", err
 	}

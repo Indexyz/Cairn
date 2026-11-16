@@ -325,7 +325,7 @@ in
       extraPackages = mkOption {
         type = types.listOf types.package;
         default = [ ];
-        description = "Packages put on the dispatcher PATH; add agent CLIs in local mode.";
+        description = "Extra packages put on the dispatcher PATH; python3 is always present for the mock worker. Add agent CLIs in local mode.";
       };
 
       tasks = {
@@ -513,7 +513,7 @@ in
         after = [ "network-online.target" ] ++ optional cfg.server.enable "cairn-server.service";
         requires = optional (useDocker && config.virtualisation.docker.enable) "docker.service";
 
-        path = cfg.dispatcher.extraPackages;
+        path = [ pkgs.python3 ] ++ cfg.dispatcher.extraPackages;
         environment = {
           HOME = cfg.stateDir;
           CAIRN_INSTANCE_ID = cfg.dispatcher.instanceId;

@@ -137,3 +137,52 @@ func contains(values []string, needle string) bool {
 	}
 	return false
 }
+
+func TestCodexLocalDriverOmitsProviderInjection(t *testing.T) {
+	value := worker(config.WorkerCodex, nil)
+	driver := NewCodex(true)
+
+	argv := driver.BuildExecute(value, "PROMPT", nil).Argv
+	want := []string{"codex", "exec", "--dangerously-bypass-approvals-and-sandbox", "--", "PROMPT"}
+	if strings.Join(argv, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("argv = %v", argv)
+	}
+	for _, part := range argv {
+		if strings.Contains(part, "model_providers") || part == "--model" {
+			t.Fatalf("provider injection leaked: %v", argv)
+		}
+	}
+
+	conclude := driver.BuildConclude(value, "PROMPT", "sess-1")
+	if strings.Join(conclude[:4], ",") != "codex,exec,resume,sess-1" {
+		t.Fatalf("conclude prefix = %v", conclude)
+	}
+	if conclude[len(conclude)-2] != "--" || conclude[len(conclude)-1] != "PROMPT" {
+		t.Fatalf("conclude tail = %v", conclude)
+	}
+	for _, part := range conclude {
+		if strings.Contains(part, "model_providers") {
+			t.Fatalf("provider injection leaked into conclude: %v", conclude)
+		}
+	}
+}
+
+func TestPiLocalDriverOmitsModelsJSONAndProvider(t *testing.T) {
+	value := worker(config.WorkerPi, nil)
+	argv := NewPi(true).BuildExecute(value, "PROMPT", nil).Argv
+
+	if argv[0] != "/bin/sh" {
+		t.Fatalf("argv = %v", argv)
+	}
+	if !strings.Contains(argv[2], "exec pi") {
+		t.Fatalf("script = %q", argv[2])
+	}
+	for _, part := range argv {
+		if part == "--provider" || part == "--model" {
+			t.Fatalf("provider flags leaked: %v", argv)
+		}
+	}
+	if argv[len(argv)-2] != "-p" || argv[len(argv)-1] != "PROMPT" {
+		t.Fatalf("tail = %v", argv)
+	}
+}

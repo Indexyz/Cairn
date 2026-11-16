@@ -1,37 +1,31 @@
 package prompting
 
 import (
-	"os"
-	"path/filepath"
+	"strings"
 	"testing"
 )
 
-// The prompt tree is embedded for the Go binary but still owned by the Python
-// package until the server port lands. Fail when the copies drift.
-func TestEmbeddedPromptsMatchPythonPackage(t *testing.T) {
-	pythonRoot := filepath.Join("..", "..", "..", "cairn", "src", "cairn", "dispatcher", "prompts")
-	if _, err := os.Stat(pythonRoot); err != nil {
-		t.Skipf("python prompt tree not available: %v", err)
-	}
-
+func TestEmbeddedPromptGroupsAreComplete(t *testing.T) {
+	required := []string{"bootstrap.md", "bootstrap_conclude.md", "reason.md", "explore.md", "explore_conclude.md"}
 	for _, group := range []string{"default", "mock"} {
-		entries, err := os.ReadDir(filepath.Join(pythonRoot, group))
-		if err != nil {
-			t.Fatalf("read %s: %v", group, err)
+		if !GroupExists(group) {
+			t.Fatalf("missing prompt group %s", group)
 		}
-		for _, entry := range entries {
-			want, err := os.ReadFile(filepath.Join(pythonRoot, group, entry.Name()))
+		for _, name := range required {
+			content, err := Load(group, name)
 			if err != nil {
-				t.Fatalf("read %s/%s: %v", group, entry.Name(), err)
+				t.Fatalf("load %s/%s: %v", group, name, err)
 			}
-			got, err := Load(group, entry.Name())
-			if err != nil {
-				t.Fatalf("embedded %s/%s: %v", group, entry.Name(), err)
-			}
-			if string(want) != got {
-				t.Fatalf("prompt drift in %s/%s", group, entry.Name())
+			if strings.TrimSpace(content) == "" {
+				t.Fatalf("empty prompt %s/%s", group, name)
 			}
 		}
+	}
+}
+
+func TestLoadRejectsMissingGroup(t *testing.T) {
+	if _, err := Load("nope", "reason.md"); err == nil {
+		t.Fatal("expected missing group error")
 	}
 }
 

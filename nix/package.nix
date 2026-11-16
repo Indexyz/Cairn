@@ -32,7 +32,6 @@ let
         uvicorn
         click
         pyyaml
-        docker
         requests
         uvloop
         httptools

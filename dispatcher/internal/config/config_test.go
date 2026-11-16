@@ -226,3 +226,50 @@ func TestUnknownKeysAreRejected(t *testing.T) {
 		t.Fatal("expected unknown key error")
 	}
 }
+
+func TestLocalExecutionNeedsNoContainerOrWorkerEnv(t *testing.T) {
+	body := `
+server: http://127.0.0.1:8000
+runtime: {interval: 1, max_workers: 1, max_running_projects: 1, max_project_workers: 1, healthcheck_timeout: 1, prompt_group: default, execution: local}
+tasks:
+  bootstrap: {timeout: 1, conclude_timeout: 1}
+  reason: {timeout: 1}
+  explore: {timeout: 1, conclude_timeout: 1}
+workers:
+  - {name: c, type: claudecode, task_types: [explore], max_running: 1, priority: 0}
+`
+	config := mustParse(t, body)
+
+	if config.Container != nil {
+		t.Fatal("local mode should not need a container block")
+	}
+	if config.Local == nil || config.Local.CompletedAction != LocalKeep {
+		t.Fatalf("local defaults = %+v", config.Local)
+	}
+	if config.Local.WorkspaceRoot != nil {
+		t.Fatalf("workspace root = %v", config.Local.WorkspaceRoot)
+	}
+	if len(config.Workers[0].Env) != 0 {
+		t.Fatalf("worker env = %v", config.Workers[0].Env)
+	}
+}
+
+func TestContainerExecutionRequiresContainerBlock(t *testing.T) {
+	body := strings.Replace(baseYAML, "container:\n  image: test-image\n  network_mode: host\n  completed_action: stop\n", "", 1)
+	if _, err := parseYAML(t, body); err == nil || !strings.Contains(err.Error(), "container config is required") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestShippedLocalExampleConfigIsValid(t *testing.T) {
+	config, err := Load("../../../dispatch.local.example.yaml")
+	if err != nil {
+		t.Fatalf("load example: %v", err)
+	}
+	if config.Runtime.Execution != ExecutionLocal || config.Container != nil || config.Local == nil {
+		t.Fatalf("example config = %+v", config.Runtime)
+	}
+	if config.Local.CompletedAction != LocalKeep {
+		t.Fatalf("completed action = %q", config.Local.CompletedAction)
+	}
+}

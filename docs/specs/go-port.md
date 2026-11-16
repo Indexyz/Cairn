@@ -1,54 +1,57 @@
 # Dispatcher port to Go
 
-Status of moving `cairn/src/cairn/dispatcher` to `dispatcher/` (Go). The server
-stays Python for now; both sides only share the HTTP protocol, so they can be
-upgraded and rolled back independently.
+The dispatcher now lives in `dispatcher/` (Go). The server stays Python and the
+two only share the documented HTTP protocol, so either side can be upgraded or
+rolled back alone. `cairn serve` is the only Python command left.
 
-## Done
+## Delivered
 
-- config loading/validation, including `MOCK_*` behavior rules and prompt
-  placeholder validation
-- HTTP client, typed protocol models, `model@instance` lease identity
-- output extraction, payload contracts for reason/explore/bootstrap
-- worker drivers (`claudecode`, `codex`, `pi`, `mock`), health probes, proxy
-  handling, session extraction
-- runtime: cancellation reasons, heartbeat leases with grace, host subprocesses
-  (process group + SIGTERM/SIGKILL), per-project containers via the Docker API,
-  archive writes, local backend
-- task runners and scheduler loop, including caps, reason checkpoints,
-  unhealthy/rejected backoff, container cleanup and blocked-project semantics
-- `cairn-dispatcher` CLI (`--config`, `--once`, `--startup-healthcheck-only`,
-  `--log-level`)
-- shipping: Nix package (`packages.<system>.dispatcher`, also installed into
-  `cairn`), NixOS module dispatcher unit, container image stage,
-  `docker compose`, CI job incl. `go vet`, `-race` and the end-to-end parity
-  test
-- ported test suites: config, contracts, health, protocol, prompting, runtime,
-  tasks, scheduler helpers, mock end-to-end; prompt drift guard against the
-  Python tree
+- full dispatcher behaviour: config and `MOCK_*` validation, HTTP client, the
+  four worker drivers, container and local backends, cancellation, heartbeat
+  leases, startup healthchecks, the three task runners, worker selection and the
+  scheduling loop (caps, reason checkpoints, unhealthy/rejected backoff,
+  container cleanup, blocked-project semantics)
+- `cairn-dispatcher` CLI: `--config`, `--once`, `--startup-healthcheck-only`,
+  `--log-level`
+- shipping: Nix package (`packages.<system>.dispatcher` and installed into
+  `cairn`), NixOS module dispatcher unit, container image build stage,
+  `docker compose`, CI job with `gofmt`, `go vet`, `go test -race`
+- parity suites ported from Python: config (container and local modes), payload
+  contracts, health probes, protocol client, prompting, runtime (subprocess
+  group kill, timeout, cancel, containers, archive writes, heartbeats), task
+  runners (including fake-CLI local runs), scheduler decisions, startup
+  healthchecks, local CLI startup check
+- end-to-end: mock workload against the real server in **local and container
+  modes**, asserting identical facts and intent targets, plus the bootstrap
+  completion scenario
 
-## Deliberately still on the Python side
+## Removed
 
-- the server (FastAPI, SQLite, Pydantic models, notifications)
-- `cairn serve`
-- `uv run --project cairn cairn dispatch` remains as the previous dispatcher
-  until the server port lands
+- `cairn/src/cairn/dispatcher` (all modules and the bundled prompt tree)
+- the Python `dispatch` command
+- dispatcher-only Python dependencies (`docker`) and lockfile entries
+- dispatcher-only Python test suites and their `conftest.py`
+- the prompt drift guard (the Go tree is now the only copy)
 
-## Remaining before deleting the Python dispatcher
+## Kept
 
-- `tests/test_local_execution.py` scenarios (fake CLI scripts) in Go
-- notification/reason edge cases reachable only through a live dispatcher on a
-  long-running server session
-- parity run of a real dispatch workload (container and local) against a
-  staging server
-- delete `cairn/src/cairn/dispatcher`, the Python `dispatch` command, the
-  duplicated prompt tree and the Python-only flake wiring; CI then drops the
-  pylint-style dispatcher tests from the Python job
+- the Python server: FastAPI, SQLite, notifications, model CRUD
+- model health probes and mock-behaviour validation, moved into
+  `cairn/server/health.py` and `cairn/server/mock_behavior.py` so the Models
+  page keeps its test button without the dispatcher package
+- `dispatch.example.yaml` / `dispatch.local.example.yaml`
 
-## Porting rules applied
+## Verification
+
+- `go vet ./...`, `go test -race ./...`, `go test ./e2e` (live server, both
+  execution modes)
+- `pytest` for the remaining server suites
+- `nix flake check --no-build` and `nix build .#cairn`
+
+## Porting rules that keep holding
 
 - behaviour over idiom where they conflict: log text, retry timing and status
-  handling match Python so existing operator runbooks hold
-- no DB access from Go; everything goes through the protocol
-- Python 403/409 responses are normal control flow, not errors
-- each ported package carries the Python test intent, not a looser rewrite
+  handling match the old dispatcher so runbooks stay valid
+- no database access from Go; everything goes through the protocol
+- Python `403`/`409` responses are normal control flow, not errors
+- each ported package carries the original test intent, not a looser rewrite

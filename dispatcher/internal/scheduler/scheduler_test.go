@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -285,3 +286,47 @@ func TestLogChangedDeduplicatesUntilCleared(t *testing.T) {
 }
 
 var _ = time.Now
+
+func localLoop(t *testing.T, workerType config.WorkerType) *Loop {
+	t.Helper()
+	loop := testLoop(t)
+	loop.Config.Runtime.Execution = config.ExecutionLocal
+	loop.Config.Workers = []config.WorkerConfig{{
+		Name: "local", Type: workerType,
+		TaskTypes: []config.TaskType{config.TaskReason}, MaxRunning: 1,
+	}}
+	return loop
+}
+
+func fakeCLI(t *testing.T, name string) {
+	t.Helper()
+	binDir := t.TempDir()
+	path := binDir + "/" + name
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write fake cli: %v", err)
+	}
+	t.Setenv("PATH", binDir)
+}
+
+func TestLocalCLICheckPassesWhenCLIIsPresent(t *testing.T) {
+	loop := localLoop(t, config.WorkerMock)
+	fakeCLI(t, "python3")
+
+	if err := loop.runLocalBinaryCheck(); err != nil {
+		t.Fatalf("check: %v", err)
+	}
+}
+
+func TestLocalCLICheckFailsWhenNoneIsInstalled(t *testing.T) {
+	loop := localLoop(t, config.WorkerClaudeCode)
+	loop.Config.Workers = append(loop.Config.Workers, config.WorkerConfig{
+		Name: "second", Type: config.WorkerPi,
+		TaskTypes: []config.TaskType{config.TaskReason}, MaxRunning: 1,
+	})
+	t.Setenv("PATH", t.TempDir())
+
+	err := loop.runLocalBinaryCheck()
+	if err == nil || !strings.Contains(err.Error(), "none of the configured worker CLIs") {
+		t.Fatalf("error = %v", err)
+	}
+}

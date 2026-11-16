@@ -135,7 +135,8 @@ Supported worker backends: **Claude Code**, **Codex**, and **Pi**.
 **Prerequisites**
  
 - macOS or Linux
-- Python ≥ 3.12
+- Go ≥ 1.26 (builds the dispatcher)
+- Python ≥ 3.12 (server)
 - Node.js ≥ 20 (builds the web UI)
 - Docker (container execution only — not needed for local mode)
 
@@ -193,7 +194,7 @@ For UI work, run `npm --prefix web run dev` instead of building; Vite proxies th
 
 ### Dispatcher implementation
 
-The dispatcher is a Go binary (`dispatcher/`), built as `cairn-dispatcher`; the Nix package, NixOS module, container image and `docker compose` all ship it. The server is still Python — the two only talk over the documented HTTP protocol, so they upgrade independently. `uv run --project cairn cairn dispatch` keeps working as the former Python dispatcher while the port settles.
+The dispatcher is a Go binary (`dispatcher/`), built as `cairn-dispatcher`; the Nix package, NixOS module, container image and `docker compose` all ship it. The server is still Python — the two only talk over the documented HTTP protocol, so they upgrade independently. The former Python dispatcher is gone; `cairn serve` is the only Python command left.
 
 ### Model list
 
@@ -293,22 +294,29 @@ Key options:
 | `services.cairn.stateDir` | `/var/lib/cairn` | Database and workspace directory |
 | `services.cairn.dispatcher.execution` | `container` | `container` uses the Docker socket, `local` uses host CLIs |
 | `services.cairn.dispatcher.serverUrl` | local server | Point at a remote server instead |
-| `services.cairn.dispatcher.extraPackages` | `[]` | CLIs to put on the dispatcher `PATH` (local mode) |
+| `services.cairn.dispatcher.extraPackages` | `[]` | Extra CLIs for the dispatcher `PATH` (local mode); python3 is always present for the mock worker |
 | `services.cairn.dispatcher.container.cap_add` | `[]` | Capabilities for worker containers |
 
 In `local` mode add the agent CLIs to `extraPackages` and point `dispatcher.local.workspaceRoot` at a writable directory; the dispatcher then runs with `PrivateDevices` off and no Docker access. Operators are expected to add port forwarding or a reverse proxy themselves when exposing the API.
 
 ### Tests
 
-Run the fast regression suite without Docker or live model endpoints:
+Server regression suite, no Docker or live model endpoints:
 
 ```bash
 uv run --project cairn --group dev pytest
 ```
 
+Dispatcher unit and end-to-end suites:
+
+```bash
+go test -race ./dispatcher/...
+go test ./dispatcher/e2e -count=1   # boots the real server; container parity needs podman
+```
+
 The web UI has a Vitest browser-mode test: `npm --prefix web test`. It mounts the project page with a stubbed API and fails when the graph renders no nodes. On NixOS point `CHROME` at a Chromium build.
 
-CI (`.github/workflows/ci.yml`) runs both suites, the type check, the build and a Nix derivation build on every push to `main` and on pull requests.
+CI (`.github/workflows/ci.yml`) runs all three suites, the type check, the build and a Nix derivation build on every push to `main` and on pull requests.
 
 ## Disclaimer
 

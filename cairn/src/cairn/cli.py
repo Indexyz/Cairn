@@ -3,8 +3,6 @@ from pathlib import Path
 import click
 import uvicorn
 
-from cairn.dispatcher.logging import configure_logging
-from cairn.dispatcher.scheduler.loop import DispatcherLoop
 from cairn.server import db
 
 
@@ -37,31 +35,3 @@ def serve(host: str, port: int, db_path: str, log_level: str, access_log: bool):
         log_level=log_level.lower(),
         access_log=access_log,
     )
-
-
-@main.command()
-@click.option(
-    "--config",
-    "config_path",
-    type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    required=True,
-    help="Dispatcher config path",
-)
-@click.option("--once", is_flag=True, help="Run one scheduling iteration and exit")
-@click.option(
-    "--startup-healthcheck-only",
-    is_flag=True,
-    help="Run startup worker healthchecks and exit",
-)
-@click.option("--log-level", default="INFO", show_default=True, help="Log level")
-def dispatch(config_path: Path, once: bool, startup_healthcheck_only: bool, log_level: str):
-    """Run the Cairn dispatcher."""
-    configure_logging(log_level, bare=startup_healthcheck_only)
-    loop = DispatcherLoop(config_path)
-    try:
-        if startup_healthcheck_only:
-            loop.run_startup_healthchecks_only()
-            return
-        loop.run(once=once)
-    except RuntimeError as exc:
-        raise click.ClickException(str(exc)) from exc
