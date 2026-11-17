@@ -14,25 +14,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  python:
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.13"
-
-      - name: Install dependencies
-        working-directory: cairn
-        run: uv sync --frozen
-
-      - name: Run tests
-        working-directory: cairn
-        run: uv run --frozen pytest -q
-
   go:
     runs-on: ubuntu-24.04
     steps:
@@ -42,34 +23,27 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: dispatcher/go.mod
-          cache-dependency-path: dispatcher/go.sum
+          go-version-file: server/go.mod
+          cache-dependency-path: |
+            server/go.sum
+            dispatcher/go.sum
 
       - name: Check formatting
-        working-directory: dispatcher
-        run: test -z "$(gofmt -l .)"
+        run: test -z "$(gofmt -l ./server ./dispatcher)"
 
       - name: Vet
-        working-directory: dispatcher
-        run: go vet ./...
+        run: go vet ./server/... ./dispatcher/...
 
       - name: Run tests
-        working-directory: dispatcher
-        run: go test -race ./...
+        run: go test -race ./server/... ./dispatcher/...
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.13"
-
-      - name: Install podman for the container parity run
+      - name: Install python3 and podman for the end-to-end runs
         run: |
           sudo apt-get update
-          sudo apt-get install -y podman
+          sudo apt-get install -y python3 podman
 
-      - name: Run end-to-end parity against the Python server
-        working-directory: dispatcher
-        run: go test ./e2e -count=1 -timeout 600s
+      - name: Run end-to-end parity against the dispatcher
+        run: go test ./dispatcher/e2e -count=1 -timeout 600s
 
   web:
     runs-on: ubuntu-24.04
@@ -119,6 +93,9 @@ jobs:
       # Fails when package-lock.json changed without recomputing npmDepsHash.
       - name: Build the web derivation
         run: nix build .#web --no-link
+
+      - name: Build the server derivation
+        run: nix build .#server --no-link
 
       - name: Evaluate the NixOS module
         run: nix flake check --no-build

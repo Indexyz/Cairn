@@ -15,7 +15,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: path.resolve(__dirname, "../cairn/src/cairn/server/static"),
+    outDir: path.resolve(__dirname, "../server/internal/api/static"),
     emptyOutDir: true,
   },
   server: {

@@ -12,15 +12,16 @@ services:
     healthcheck:
       test:
         - "CMD"
-        - "python"
-        - "-c"
-        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/projects', timeout=5)"
+        - "wget"
+        - "-q"
+        - "--spider"
+        - "http://127.0.0.1:8000/projects"
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 3s
     restart: unless-stopped
-    command: ["uv", "run", "cairn", "serve", "--host", "0.0.0.0", "--no-access-log"]
+    command: ["cairn", "serve", "--host", "0.0.0.0", "--no-access-log"]
   cairn-dispatcher:
     build:
       context: .

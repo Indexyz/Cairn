@@ -4,7 +4,7 @@
 #
 # Usage:
 #   cp dispatch.local.example.yaml dispatch.yaml
-#   uv run --project cairn cairn serve                       # in one shell
+#   go run ./server/cmd/cairn serve                          # in one shell
 #   go run ./dispatcher/cmd/cairn-dispatcher --config dispatch.yaml
 #
 # Notes:

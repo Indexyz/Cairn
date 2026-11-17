@@ -1,57 +1,54 @@
-# Dispatcher port to Go
+# Port to Go
 
-The dispatcher now lives in `dispatcher/` (Go). The server stays Python and the
-two only share the documented HTTP protocol, so either side can be upgraded or
-rolled back alone. `cairn serve` is the only Python command left.
+Cairn is Go end to end. `server/` is the API + SQLite graph store, `dispatcher/`
+runs workers. They are separate binaries (module `server` and module
+`dispatcher`) that only speak the HTTP protocol in `server-protocol.md`.
 
 ## Delivered
 
-- full dispatcher behaviour: config and `MOCK_*` validation, HTTP client, the
-  four worker drivers, container and local backends, cancellation, heartbeat
-  leases, startup healthchecks, the three task runners, worker selection and the
-  scheduling loop (caps, reason checkpoints, unhealthy/rejected backoff,
-  container cleanup, blocked-project semantics)
-- `cairn-dispatcher` CLI: `--config`, `--once`, `--startup-healthcheck-only`,
-  `--log-level`
-- shipping: Nix package (`packages.<system>.dispatcher` and installed into
-  `cairn`), NixOS module dispatcher unit, container image build stage,
-  `docker compose`, CI job with `gofmt`, `go vet`, `go test -race`
-- parity suites ported from Python: config (container and local modes), payload
-  contracts, health probes, protocol client, prompting, runtime (subprocess
-  group kill, timeout, cancel, containers, archive writes, heartbeats), task
-  runners (including fake-CLI local runs), scheduler decisions, startup
-  healthchecks, local CLI startup check
-- end-to-end: mock workload against the real server in **local and container
-  modes**, asserting identical facts and intent targets, plus the bootstrap
-  completion scenario
+Server:
+
+- schema, WAL/busy-timeout/`BEGIN IMMEDIATE` write serialization and legacy
+  column migrations
+- every route: settings, models and `/load`, notifications, projects, fork,
+  hints, intents, complete/reopen, YAML/timeline export
+- validation with FastAPI-compatible 422 payloads, status codes and detail
+  strings
+- step-limit blocking, lease expiry, reason leases, `model@instance` load
+  accounting
+- notification rendering and Discord/Telegram/webhook delivery after the
+  response commits
+- model health probes, `MOCK_*` validation, embedded web UI, `cairn serve` CLI
+- test suites for the workflow, models, notifications, step limits, health
+  probes and migrations
+
+Dispatcher: see the earlier milestones in git history — config, drivers,
+backends, tasks, scheduler, whole-loop parity with a live server, local and
+container e2e.
+
+## Wiring
+
+- `go.work` spans both modules
+- Nix builds `packages.<system>.server` and the combined `cairn` package; the
+  NixOS module runs `cairn serve` and `cairn-dispatcher`
+- Dockerfile builds both binaries into an alpine image; compose healthchecks
+  through the server route
+- CI runs `gofmt`, `go vet`, `go test -race ./server/... ./dispatcher/...` and the e2e parity suite
 
 ## Removed
 
-- `cairn/src/cairn/dispatcher` (all modules and the bundled prompt tree)
-- the Python `dispatch` command
-- dispatcher-only Python dependencies (`docker`) and lockfile entries
-- dispatcher-only Python test suites and their `conftest.py`
-- the prompt drift guard (the Go tree is now the only copy)
+- the whole Python tree (`cairn/`), `pyproject.toml`, `uv.lock`, every Python
+  test and the Python Nix wrapper
 
-## Kept
+## Remaining Python
 
-- the Python server: FastAPI, SQLite, notifications, model CRUD
-- model health probes and mock-behaviour validation, moved into
-  `cairn/server/health.py` and `cairn/server/mock_behavior.py` so the Models
-  page keeps its test button without the dispatcher package
-- `dispatch.example.yaml` / `dispatch.local.example.yaml`
+Only the mock worker's helper script: it shells out to `python3` so it can also
+run inside the worker container image. Every real adapter invokes its own CLI.
 
 ## Verification
 
-- `go vet ./...`, `go test -race ./...`, `go test ./e2e` (live server, both
-  execution modes)
-- `pytest` for the remaining server suites
-- `nix flake check --no-build` and `nix build .#cairn`
-
-## Porting rules that keep holding
-
-- behaviour over idiom where they conflict: log text, retry timing and status
-  handling match the old dispatcher so runbooks stay valid
-- no database access from Go; everything goes through the protocol
-- Python `403`/`409` responses are normal control flow, not errors
-- each ported package carries the original test intent, not a looser rewrite
+- `gofmt`, `go vet`, `go test -race ./server/... ./dispatcher/...` across both modules
+- `dispatcher/e2e`: bootstrap completion plus the local/container parity run
+  against the real server, with the container leg on rootless podman
+- `nix flake check --no-build`, `nix build .#cairn`
+- web lint/build

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,10 +24,34 @@ func repoRoot(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("repo root: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "cairn", "pyproject.toml")); err != nil {
-		t.Skip("python server not available")
+	if _, err := os.Stat(filepath.Join(root, "server", "go.mod")); err != nil {
+		t.Skip("server module not available")
 	}
 	return root
+}
+
+var (
+	buildOnce    sync.Once
+	serverBinary string
+	buildError   error
+)
+
+// serverExecutable builds the Go server once per test binary.
+func serverExecutable(t *testing.T, root string) string {
+	t.Helper()
+	buildOnce.Do(func() {
+		serverBinary = filepath.Join(os.TempDir(), fmt.Sprintf("cairn-server-%d", os.Getpid()))
+		command := exec.Command("go", "build", "-o", serverBinary, "./cmd/cairn")
+		command.Dir = filepath.Join(root, "server")
+		output, err := command.CombinedOutput()
+		if err != nil {
+			buildError = fmt.Errorf("build server: %v: %s", err, output)
+		}
+	})
+	if buildError != nil {
+		t.Fatalf("%v", buildError)
+	}
+	return serverBinary
 }
 
 // ensurePython3 makes python3 resolvable for the mock worker, using the
@@ -66,14 +91,11 @@ type server struct {
 
 func startServer(t *testing.T, root string) *server {
 	t.Helper()
-	if _, err := exec.LookPath("uv"); err != nil {
-		t.Skip("uv not installed")
-	}
 	ensurePython3(t)
 	port := freePort(t)
 	database := filepath.Join(t.TempDir(), "cairn.db")
 	command := exec.Command(
-		"uv", "run", "--project", filepath.Join(root, "cairn"), "cairn",
+		serverExecutable(t, root),
 		"serve", "--db-path", database, "--port", fmt.Sprint(port), "--no-access-log",
 	)
 	command.Dir = root

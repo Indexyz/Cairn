@@ -1,15 +1,13 @@
-{ lib
-, stdenv
-, python3
-, nodejs_22
-, buildGoModule
-, buildNpmPackage
-, writeShellApplication
-,
+{
+  lib,
+  stdenv,
+  nodejs_22,
+  buildGoModule,
+  buildNpmPackage,
 }:
 
 let
-  version = (builtins.fromTOML (builtins.readFile ../cairn/pyproject.toml)).project.version;
+  version = "0.2.1";
 
   dispatcher = buildGoModule {
     pname = "cairn-dispatcher";
@@ -19,25 +17,10 @@ let
     subPackages = [ "cmd/cairn-dispatcher" ];
     ldflags = [ "-s" "-w" ];
     meta = {
-      description = "Cairn dispatcher (Go)";
+      description = "Cairn dispatcher";
       mainProgram = "cairn-dispatcher";
     };
   };
-
-  python = python3.withPackages (
-    ps:
-      with ps;
-      [
-        fastapi
-        uvicorn
-        click
-        pyyaml
-        requests
-        uvloop
-        httptools
-        websockets
-      ]
-  );
 
   web = buildNpmPackage {
     pname = "cairn-web";
@@ -61,44 +44,24 @@ let
     '';
   };
 
-  src = lib.cleanSourceWith {
-    src = ../.;
-    filter =
-      path: type:
-      let
-        name = baseNameOf path;
-      in
-        !(builtins.elem name [
-          ".git"
-          ".venv"
-          "node_modules"
-          "dist"
-          "datas"
-          "result"
-        ]);
-  };
+  server = buildGoModule {
+    pname = "cairn-server";
+    inherit version;
+    src = ../server;
+    vendorHash = "sha256-4IjZh0PR9LEGsc8QucR8XxsaJuht1c8MDk/nN8qR6+A=";
+    subPackages = [ "cmd/cairn" ];
+    ldflags = [ "-s" "-w" ];
 
-  app = stdenv.mkDerivation {
-    pname = "cairn-app";
-    inherit version src;
-
-    installPhase = ''
-      runHook preInstall
-      mkdir -p $out
-      cp -r cairn/src/cairn $out/cairn
-      mkdir -p $out/cairn/server/static
-      cp -r ${web}/. $out/cairn/server/static/
-      runHook postInstall
+    preBuild = ''
+      rm -rf internal/api/static
+      mkdir -p internal/api/static
+      cp -r ${web}/. internal/api/static/
     '';
-  };
 
-  cairnScript = writeShellApplication {
-    name = "cairn";
-    runtimeInputs = [ python ];
-    text = ''
-      export PYTHONPATH="${app}:''${PYTHONPATH:-}"
-      exec python -c 'import sys; from cairn.cli import main; sys.exit(main())' "$@"
-    '';
+    meta = {
+      description = "Cairn API server";
+      mainProgram = "cairn";
+    };
   };
 in
 stdenv.mkDerivation {
@@ -109,13 +72,13 @@ stdenv.mkDerivation {
   installPhase = ''
     runHook preInstall
     mkdir -p $out/bin
+    install -m755 ${server}/bin/cairn $out/bin/cairn
     install -m755 ${dispatcher}/bin/cairn-dispatcher $out/bin/cairn-dispatcher
-    install -m755 ${cairnScript}/bin/cairn $out/bin/cairn
     runHook postInstall
   '';
 
   passthru = {
-    inherit web app dispatcher;
+    inherit web server dispatcher;
   };
 
   meta = {

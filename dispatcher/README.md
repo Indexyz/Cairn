@@ -1,15 +1,14 @@
 # cairn-dispatcher (Go)
 
 Go implementation of the Cairn dispatcher. It speaks the HTTP protocol in
-`docs/specs/server-protocol.md` to the Python server; it never touches the
-database.
+`docs/specs/server-protocol.md` to the server; it never touches the database.
 
 ## Why Go
 
 The dispatcher is all concurrency and process plumbing: one container per
 project, streamed worker output, heartbeat leases, cancellations, container
 cleanup. Goroutines, `context` and `os/exec` fit that better than threads, and
-the result is one static binary instead of a Python runtime.
+the result is one static binary.
 
 ## Layout
 
@@ -34,11 +33,11 @@ go build -o cairn-dispatcher ./cmd/cairn-dispatcher
 ./cairn-dispatcher --config dispatch.yaml --once
 
 go test -race ./...        # unit tests
-go test ./e2e -timeout 300s # end-to-end parity against the Python server
+go test ./e2e -timeout 300s # end-to-end parity against the real server
 ```
 
 The mock worker still shells out to `python3` because it must also run inside
-the Python worker image; every other adapter invokes its own CLI.
+the worker container image; every other adapter invokes its own CLI.
 
 ## Parity notes
 
@@ -46,7 +45,7 @@ the Python worker image; every other adapter invokes its own CLI.
   stay instance scoped.
 - `active` and `blocked` projects are runnable; blocked projects declare no new
   intents but finish outstanding ones and may complete.
-- Server-side `403`/`409` are handled like the Python dispatcher (release,
+- Server-side `403`/`409` are handled as the old implementation did (release,
   retry later, or defer completion) rather than treated as fatal.
 - Log lines, reason checkpoints, unhealthy/rejected backoff and startup
-  healthcheck output keep the Python shapes so operator workflows do not change.
+  healthcheck output keep the original shapes so operator workflows do not change.

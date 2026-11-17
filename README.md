@@ -135,10 +135,10 @@ Supported worker backends: **Claude Code**, **Codex**, and **Pi**.
 **Prerequisites**
  
 - macOS or Linux
-- Go ≥ 1.26 (builds the dispatcher)
-- Python ≥ 3.12 (server)
+- Go ≥ 1.26
 - Node.js ≥ 20 (builds the web UI)
 - Docker (container execution only — not needed for local mode)
+- python3 only for the optional `mock` worker
 
 
 ### Pull required images
@@ -160,13 +160,9 @@ cp dispatch.example.yaml dispatch.yaml
 ```
  
 ### Docker Compose (recommended)
- 
-Pull the base image used to build Cairn:
- 
-```bash
-docker pull ghcr.io/astral-sh/uv:python3.13-trixie
-```
- 
+
+The worker image is already pulled above; compose builds the app image locally.
+
 ```bash
 docker compose up --build
 ```
@@ -176,25 +172,29 @@ This starts `cairn-server` on port `8000` and `cairn-dispatcher` once the server
 ### Manual
 
 ```bash
-# Build the web UI (served by the server from cairn/src/cairn/server/static)
+# Build the web UI (Vite writes into the server's embedded static tree)
 npm --prefix web install
 npm --prefix web run build
 
-# Start the server
-uv run --project cairn cairn serve
+# Build both binaries
+go build -o cairn ./server/cmd/cairn
+go build -o cairn-dispatcher ./dispatcher/cmd/cairn-dispatcher
 
-# Run the dispatcher (Go)
-go run ./dispatcher/cmd/cairn-dispatcher --config dispatch.yaml
+# Start the server
+./cairn serve
+
+# Run the dispatcher
+./cairn-dispatcher --config dispatch.yaml
 
 # Run startup health checks only
-go run ./dispatcher/cmd/cairn-dispatcher --config dispatch.yaml --startup-healthcheck-only
+./cairn-dispatcher --config dispatch.yaml --startup-healthcheck-only
 ```
 
 For UI work, run `npm --prefix web run dev` instead of building; Vite proxies the API to `127.0.0.1:8000`.
 
 ### Dispatcher implementation
 
-The dispatcher is a Go binary (`dispatcher/`), built as `cairn-dispatcher`; the Nix package, NixOS module, container image and `docker compose` all ship it. The server is still Python — the two only talk over the documented HTTP protocol, so they upgrade independently. The former Python dispatcher is gone; `cairn serve` is the only Python command left.
+Server (`server/`, `cairn serve`) and dispatcher (`dispatcher/`, `cairn-dispatcher`) are separate Go binaries that only talk over the documented HTTP protocol. The Nix package, NixOS module, container image and `docker compose` ship both.
 
 ### Model list
 
@@ -234,7 +234,7 @@ Instead of one container per project, workers can run directly on the dispatcher
 cp dispatch.local.example.yaml dispatch.yaml
 
 # Start the server
-uv run --project cairn cairn serve
+go run ./server/cmd/cairn serve
 
 # Run the dispatcher on the same host, where the CLIs are installed and logged in
 go run ./dispatcher/cmd/cairn-dispatcher --config dispatch.yaml
@@ -301,17 +301,11 @@ In `local` mode add the agent CLIs to `extraPackages` and point `dispatcher.loca
 
 ### Tests
 
-Server regression suite, no Docker or live model endpoints:
+Server and dispatcher suites:
 
 ```bash
-uv run --project cairn --group dev pytest
-```
-
-Dispatcher unit and end-to-end suites:
-
-```bash
-go test -race ./dispatcher/...
-go test ./dispatcher/e2e -count=1   # boots the real server; container parity needs podman
+go test -race ./server/... ./dispatcher/...
+go test ./dispatcher/e2e -count=1   # boots the server; container parity needs podman
 ```
 
 The web UI has a Vitest browser-mode test: `npm --prefix web test`. It mounts the project page with a stubbed API and fails when the graph renders no nodes. On NixOS point `CHROME` at a Chromium build.

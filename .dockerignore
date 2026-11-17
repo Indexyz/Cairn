@@ -11,9 +11,8 @@ LICENSE
 # rebuilt inside the image
 web/node_modules
 web/dist
-cairn/.venv
-cairn/src/cairn/server/static/assets
-cairn/src/cairn/server/static/index.html
+server/internal/api/static/assets
+server/internal/api/static/index.html
 
 # runtime state
 datas

@@ -1,6 +1,7 @@
 .vscode/
 .DS_Store
 __pycache__/
+.pytest_cache/
 .playwright-cli/
 datas/
 dispatch.yaml
@@ -9,11 +10,13 @@ dispatch.yaml
 web/node_modules/
 web/dist/
 web/tsconfig.tsbuildinfo
-cairn/src/cairn/server/static/index.html
-cairn/src/cairn/server/static/assets/
+server/internal/api/static/index.html
+server/internal/api/static/assets/
 
 # vitest browser artifacts
 web/.vitest/
 
 # go build output
 dispatcher/cairn-dispatcher
+server/cairn
+server/cairn-server
