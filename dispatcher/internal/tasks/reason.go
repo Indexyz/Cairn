@@ -43,6 +43,7 @@ func RunReasonTask(
 		log.Errorf("reason ensure container failed project=%s error=%s", projectID, err)
 		return "failed"
 	}
+	writeMCPConfig(manager, projectID, containerName, worker)
 
 	if TaskHealthcheckEnabled(dispatch) {
 		log.Infof("checking worker health project=%s worker=%s timeout=%ds", projectID, worker.Name, dispatch.Runtime.HealthcheckTimeout)

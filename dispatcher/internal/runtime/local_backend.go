@@ -39,6 +39,11 @@ func NewLocalBackend(local *config.LocalConfig) *LocalBackend {
 // Close releases nothing for local processes.
 func (*LocalBackend) Close() {}
 
+// WorkspacePath is the host project directory.
+func (backend *LocalBackend) WorkspacePath(projectID string) string {
+	return backend.projectDir(projectID)
+}
+
 // ContainerName is the project working directory.
 func (backend *LocalBackend) ContainerName(projectID string) string {
 	return backend.projectDir(projectID)

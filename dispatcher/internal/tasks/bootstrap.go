@@ -43,6 +43,7 @@ func RunBootstrapTask(
 		BestEffortRelease(client, projectID, intent.ID, worker.Name)
 		return "failed"
 	}
+	writeMCPConfig(manager, projectID, containerName, worker)
 
 	if TaskHealthcheckEnabled(dispatch) {
 		log.Infof("checking worker health project=%s intent=%s worker=%s timeout=%ds", projectID, intent.ID, worker.Name, dispatch.Runtime.HealthcheckTimeout)

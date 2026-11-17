@@ -921,7 +921,7 @@ codex exec resume "{session}" --dangerously-bypass-approvals-and-sandbox --model
 | `mcp.servers.<name>.env` | 否 | 服务器进程环境变量 |
 | `mcp.servers.<name>.headers` | 否 | http / sse 请求头 |
 
-Claude 用 `--mcp-config` 接收该 JSON，Codex 翻译成 `-c mcp_servers.*` 覆盖项。worker 自己的 `env.MCP_CONFIG` 优先于全局 `mcp` 配置。
+该 JSON 同时写入项目工作区的 `.mcp.json`（Pi 直接读取项目配置）。Claude 额外用 `--mcp-config` 接收，Codex 翻译成 `-c mcp_servers.*` 覆盖项。worker 自己的 `env.MCP_CONFIG` 优先于全局 `mcp` 配置。
 
 ### `workers.*`
 

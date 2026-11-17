@@ -29,6 +29,7 @@ type ExecProcess interface {
 type Backend interface {
 	ContainerName(projectID string) string
 	EnsureRunning(projectID string) (string, error)
+	WorkspacePath(projectID string) string
 	BuildExecProcess(containerName string, env map[string]string, command []string, timeoutSeconds int, killAfterSeconds int) (ExecProcess, error)
 	WriteTextFile(containerName, path, content string) error
 	NeedsCompletedCleanup(projectID string) bool

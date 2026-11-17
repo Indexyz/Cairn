@@ -22,6 +22,7 @@ type Client interface {
 // Backend is the execution surface the task runners use.
 type Backend interface {
 	EnsureRunning(projectID string) (string, error)
+	WorkspacePath(projectID string) string
 	BuildExecProcess(containerName string, env map[string]string, command []string, timeoutSeconds int, killAfterSeconds int) (runtime.ExecProcess, error)
 	WriteTextFile(containerName, path, content string) error
 }

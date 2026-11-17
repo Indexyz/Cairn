@@ -31,6 +31,8 @@ type fakeBackend struct {
 	writes  [][3]string
 }
 
+func (*fakeBackend) WorkspacePath(projectID string) string { return "/workspace/" + projectID }
+
 func (backend *fakeBackend) EnsureRunning(projectID string) (string, error) {
 	return "container-" + projectID, nil
 }
@@ -381,5 +383,38 @@ func TestExploreLocalCLIRejectionReleasesIntent(t *testing.T) {
 	}
 	if len(client.concluded) != 0 || len(client.released) != 1 {
 		t.Fatalf("concluded=%v released=%v", client.concluded, client.released)
+	}
+}
+
+func TestExploreWritesProjectScopedMCPConfig(t *testing.T) {
+	dispatch := testConfig()
+	if dispatch.Workers[0].Env == nil {
+		dispatch.Workers[0].Env = map[string]string{}
+	}
+	payload := `{"mcpServers":{"fs":{"command":"mcp-fs"}}}`
+	dispatch.Workers[0].Env["MCP_CONFIG"] = payload
+	project := testProject()
+	client := &fakeClient{project: project}
+	backend := &fakeBackend{results: []runtime.ProcessResult{
+		{Stdout: `{"accepted":true,"data":{"description":"confirmed fact"}}`},
+	}}
+	useDriver(t, &fakeDriver{})
+
+	RunExploreTask(dispatch, client, backend, project, "facts: []\n", &project.Intents[0], &dispatch.Workers[0], &runtime.TaskCancellation{})
+
+	found := false
+	for _, write := range backend.writes {
+		if strings.HasSuffix(write[1], "/.mcp.json") {
+			found = true
+			if write[2] != payload {
+				t.Fatalf("mcp content = %q", write[2])
+			}
+			if !strings.HasPrefix(write[1], "/workspace/") {
+				t.Fatalf("mcp path = %q", write[1])
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("no mcp config written: %v", backend.writes)
 	}
 }

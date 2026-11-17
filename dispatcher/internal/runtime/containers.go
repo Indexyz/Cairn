@@ -46,6 +46,12 @@ func NewContainerManager(containerConfig *config.ContainerConfig, instanceID str
 // Close releases the Docker client.
 func (manager *ContainerManager) Close() { _ = manager.api.Close() }
 
+// workspaceDir is the agent working directory baked into the worker image.
+const workspaceDir = "/home/kali/workspace"
+
+// WorkspacePath is the in-container working directory.
+func (*ContainerManager) WorkspacePath(string) string { return workspaceDir }
+
 // ContainerName is instance scoped so dispatchers on one host never collide.
 func (manager *ContainerManager) ContainerName(projectID string) string {
 	sanitized := strings.ReplaceAll(projectID, "/", "-")

@@ -3,6 +3,7 @@ package tasks
 
 import (
 	"encoding/json"
+	"path"
 	"strings"
 	"time"
 
@@ -12,6 +13,9 @@ import (
 	"github.com/Indexyz/Cairn/dispatcher/internal/logging"
 	"github.com/Indexyz/Cairn/dispatcher/internal/runtime"
 )
+
+// mcpConfigName is the project-scoped MCP file every agent CLI can read.
+const mcpConfigName = ".mcp.json"
 
 const (
 	processCommunicateGrace = 15
@@ -200,4 +204,17 @@ func stringPointer(value string) *string { return &value }
 
 func elapsedMs(started time.Time) int {
 	return int(time.Since(started).Milliseconds())
+}
+
+// writeMCPConfig drops the merged MCP servers into the project workspace so the
+// agent CLI picks them up without a per-agent flag.
+func writeMCPConfig(manager Backend, projectID, containerName string, worker *config.WorkerConfig) {
+	raw := strings.TrimSpace(worker.Env["MCP_CONFIG"])
+	if raw == "" {
+		return
+	}
+	target := path.Join(manager.WorkspacePath(projectID), mcpConfigName)
+	if err := manager.WriteTextFile(containerName, target, raw); err != nil {
+		log.Warnf("write mcp config failed project=%s worker=%s error=%s", projectID, worker.Name, err)
+	}
 }
