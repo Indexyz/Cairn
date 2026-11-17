@@ -19,6 +19,10 @@
     server.publicUrl = "https://cairn.example.com";
 
     dispatcher.enable = true;
+    dispatcher.mcpServers.filesystem = {
+      command = "mcp-server-filesystem";
+      args = [ "/home/kali/workspace" ];
+    };
     dispatcher.workers = [
       {
         name = "claudecode_deepseek";

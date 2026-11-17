@@ -112,6 +112,8 @@ Workers can also run directly on the dispatcher host instead of in per-project c
 
 Supported worker backends: **Claude Code**, **Codex**, and **Pi**.
 
+Agents can be given MCP servers through the `mcp.servers` block in `dispatch.yaml`: Claude receives them via `--mcp-config`, Codex via `-c mcp_servers.*` overrides, and a worker's own `env.MCP_CONFIG` wins over the shared list. The worker image ships Claude Code with the experimental Code Mode enabled (`CLAUDE_CODE_EXPERIMENTAL_CODE_MODE=1`), so a model can batch its tool calls into one JavaScript snippet.
+
 ## Results
 
 **Tencent Cloud Hackathon · AI Penetration Testing Challenge · 2nd Edition**

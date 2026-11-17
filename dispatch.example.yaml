@@ -9,6 +9,18 @@ common_env:
   TSEC_SERVER_HOST: "<SERVER_HOST>:8000"
   TSEC_AGENT_TOKEN: "xxx"
 
+# MCP servers handed to every agent (Claude via --mcp-config, Codex via -c overrides).
+# Each entry needs `command` (stdio) or `url` (http/sse); `env` fills the agent env.
+# mcp:
+#   servers:
+#     filesystem:
+#       command: "mcp-server-filesystem"
+#       args: ["/home/kali/workspace"]
+#     remote:
+#       url: "https://mcp.example.com/sse"
+#       headers:
+#         Authorization: "Bearer sk-xxx"
+
 runtime:
   # Scheduler tick interval in seconds.
   interval: 3

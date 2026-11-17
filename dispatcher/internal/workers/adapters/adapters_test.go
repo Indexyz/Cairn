@@ -186,3 +186,56 @@ func TestPiLocalDriverOmitsModelsJSONAndProvider(t *testing.T) {
 		t.Fatalf("tail = %v", argv)
 	}
 }
+
+func TestClaudePassesMCPConfig(t *testing.T) {
+	value := worker(config.WorkerClaudeCode, map[string]string{
+		"MCP_CONFIG": `{"mcpServers":{"fs":{"command":"mcp-fs"}}}`,
+	})
+	driver := ClaudeCode{}
+
+	execute := driver.BuildExecute(value, "prompt", nil).Argv
+	if !containsPair(execute, "--mcp-config", `{"mcpServers":{"fs":{"command":"mcp-fs"}}}`) {
+		t.Fatalf("execute argv = %v", execute)
+	}
+	conclude := driver.BuildConclude(value, "prompt", "session")
+	if !containsPair(conclude, "--mcp-config", `{"mcpServers":{"fs":{"command":"mcp-fs"}}}`) {
+		t.Fatalf("conclude argv = %v", conclude)
+	}
+}
+
+func TestClaudeOmitsMCPConfigWhenUnset(t *testing.T) {
+	value := worker(config.WorkerClaudeCode, map[string]string{})
+	if argv := (ClaudeCode{}).BuildExecute(value, "prompt", nil).Argv; strings.Contains(strings.Join(argv, " "), "--mcp-config") {
+		t.Fatalf("argv = %v", argv)
+	}
+}
+
+func TestCodexTranslatesMCPConfigToOverrides(t *testing.T) {
+	value := worker(config.WorkerCodex, map[string]string{
+		"CODEX_MODEL":    "model",
+		"CODEX_BASE_URL": "http://api",
+		"MCP_CONFIG":     `{"mcpServers":{"fs":{"command":"mcp-fs","args":["--root","/work"],"env":{"TOKEN":"secret"}},"remote":{"url":"https://mcp.test/sse"}}}`,
+	})
+	argv := NewCodex(false).BuildExecute(value, "prompt", nil).Argv
+	joined := strings.Join(argv, " ")
+
+	for _, expected := range []string{
+		`mcp_servers.fs.command="mcp-fs"`,
+		`mcp_servers.fs.args=["--root", "/work"]`,
+		`mcp_servers.fs.env={TOKEN="secret"}`,
+		`mcp_servers.remote.url="https://mcp.test/sse"`,
+	} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("missing %q in %v", expected, argv)
+		}
+	}
+}
+
+func containsPair(argv []string, flag, value string) bool {
+	for index := 0; index+1 < len(argv); index++ {
+		if argv[index] == flag && argv[index+1] == value {
+			return true
+		}
+	}
+	return false
+}

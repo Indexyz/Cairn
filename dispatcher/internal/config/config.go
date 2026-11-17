@@ -249,6 +249,21 @@ type WorkerConfig struct {
 	Env        map[string]string `yaml:"env" json:"env"`
 }
 
+// MCPServer is one MCP server, in the shape the Claude CLI accepts.
+type MCPServer struct {
+	Type    string            `yaml:"type" json:"type,omitempty"`
+	Command string            `yaml:"command" json:"command,omitempty"`
+	Args    []string          `yaml:"args" json:"args,omitempty"`
+	Env     map[string]string `yaml:"env" json:"env,omitempty"`
+	URL     string            `yaml:"url" json:"url,omitempty"`
+	Headers map[string]string `yaml:"headers" json:"headers,omitempty"`
+}
+
+// MCPConfig lists the MCP servers passed to every agent.
+type MCPConfig struct {
+	Servers map[string]MCPServer `yaml:"servers"`
+}
+
 // DispatchConfig is the whole dispatch.yaml document.
 type DispatchConfig struct {
 	Server    string            `yaml:"server"`
@@ -257,6 +272,7 @@ type DispatchConfig struct {
 	Container *ContainerConfig  `yaml:"container"`
 	Local     *LocalConfig      `yaml:"local"`
 	CommonEnv map[string]string `yaml:"common_env"`
+	MCP       *MCPConfig        `yaml:"mcp"`
 	Workers   []WorkerConfig    `yaml:"workers"`
 }
 
@@ -287,6 +303,9 @@ func Parse(raw []byte) (*DispatchConfig, error) {
 		config.Local.CompletedAction = LocalKeep
 	}
 	config.mergeCommonEnv()
+	if err := config.mergeMCP(); err != nil {
+		return nil, err
+	}
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
@@ -304,6 +323,46 @@ func (config *DispatchConfig) mergeCommonEnv() {
 		}
 		config.Workers[index].Env = merged
 	}
+}
+
+// mergeMCP normalizes the MCP block and hands it to the agents as MCP_CONFIG.
+func (config *DispatchConfig) mergeMCP() error {
+	if config.MCP == nil || len(config.MCP.Servers) == 0 {
+		return nil
+	}
+	for name, server := range config.MCP.Servers {
+		if server.Command == "" && server.URL == "" {
+			return fmt.Errorf("mcp.servers.%s needs command or url", name)
+		}
+		if server.Command == "" {
+			if server.Type == "" {
+				server.Type = "http"
+			}
+		} else if server.Type == "" {
+			server.Type = "stdio"
+		}
+		if server.Type != "stdio" && server.Type != "http" && server.Type != "sse" {
+			return fmt.Errorf("mcp.servers.%s type must be stdio, http or sse", name)
+		}
+		config.MCP.Servers[name] = server
+	}
+	payload, err := json.Marshal(map[string]any{"mcpServers": config.MCP.Servers})
+	if err != nil {
+		return fmt.Errorf("mcp config: %w", err)
+	}
+	encoded := string(payload)
+	for index := range config.Workers {
+		if _, exists := config.Workers[index].Env["MCP_CONFIG"]; exists {
+			continue
+		}
+		merged := map[string]string{}
+		for key, value := range config.Workers[index].Env {
+			merged[key] = value
+		}
+		merged["MCP_CONFIG"] = encoded
+		config.Workers[index].Env = merged
+	}
+	return nil
 }
 
 func (config *DispatchConfig) validate() error {

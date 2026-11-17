@@ -1,7 +1,11 @@
 package adapters
 
 import (
+	"encoding/json"
+	"fmt"
 	"regexp"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/Indexyz/Cairn/dispatcher/internal/config"
@@ -54,7 +58,7 @@ func (driver *Codex) executePrefix(worker *config.WorkerConfig) []string {
 		return []string{"codex", "exec", "--dangerously-bypass-approvals-and-sandbox"}
 	}
 	env := worker.Env
-	return []string{
+	argv := []string{
 		"codex", "exec", "--dangerously-bypass-approvals-and-sandbox",
 		"--model", env["CODEX_MODEL"],
 		"-c", `model_provider="cairn"`,
@@ -64,6 +68,76 @@ func (driver *Codex) executePrefix(worker *config.WorkerConfig) []string {
 		"-c", `model_providers.cairn.base_url="` + env["CODEX_BASE_URL"] + `"`,
 		"-c", `model_providers.cairn.env_key="OPENAI_API_KEY"`,
 	}
+	return append(argv, codexMCPArgs(worker)...)
+}
+
+// codexMCPArgs translates MCP_CONFIG into codex `-c` overrides.
+func codexMCPArgs(worker *config.WorkerConfig) []string {
+	raw := strings.TrimSpace(worker.Env["MCP_CONFIG"])
+	if raw == "" {
+		return nil
+	}
+	var document struct {
+		Servers map[string]struct {
+			Command string            `json:"command"`
+			Args    []string          `json:"args"`
+			Env     map[string]string `json:"env"`
+			URL     string            `json:"url"`
+			Headers map[string]string `json:"headers"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal([]byte(raw), &document); err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(document.Servers))
+	for name := range document.Servers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var argv []string
+	for _, name := range names {
+		server := document.Servers[name]
+		prefix := "mcp_servers." + name
+		if server.Command != "" {
+			argv = append(argv, "-c", fmt.Sprintf("%s.command=%q", prefix, server.Command))
+			if len(server.Args) > 0 {
+				quoted := make([]string, len(server.Args))
+				for index, arg := range server.Args {
+					quoted[index] = fmt.Sprintf("%q", arg)
+				}
+				argv = append(argv, "-c", fmt.Sprintf("%s.args=[%s]", prefix, strings.Join(quoted, ", ")))
+			}
+		}
+		if server.URL != "" {
+			argv = append(argv, "-c", fmt.Sprintf("%s.url=%q", prefix, server.URL))
+		}
+		if len(server.Env) > 0 {
+			keys := sortedKeys(server.Env)
+			pairs := make([]string, len(keys))
+			for index, key := range keys {
+				pairs[index] = fmt.Sprintf("%s=%q", key, server.Env[key])
+			}
+			argv = append(argv, "-c", fmt.Sprintf("%s.env={%s}", prefix, strings.Join(pairs, ", ")))
+		}
+		if len(server.Headers) > 0 {
+			keys := sortedKeys(server.Headers)
+			pairs := make([]string, len(keys))
+			for index, key := range keys {
+				pairs[index] = fmt.Sprintf("%s=%q", key, server.Headers[key])
+			}
+			argv = append(argv, "-c", fmt.Sprintf("%s.http_headers={%s}", prefix, strings.Join(pairs, ", ")))
+		}
+	}
+	return argv
+}
+
+func sortedKeys(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // BuildExecute builds the execute argv.

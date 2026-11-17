@@ -76,7 +76,7 @@ RUN pip3 install tccli awscli --break-system-packages && \
     sudo bash -c "$(curl -fsSL https://aliyuncli.alicdn.com/install.sh)"
 
 RUN sudo npm install -g @openai/codex@0.118.0
-RUN sudo npm install -g @anthropic-ai/claude-code@2.1.98
+RUN sudo npm install -g @anthropic-ai/claude-code@2.1.326
 RUN sudo npm install -g @mariozechner/pi-coding-agent@0.73.0
 
 COPY --from=kerbrute /kerbrute /usr/local/bin/kerbrute
@@ -103,6 +103,8 @@ RUN printf '%s\n' 'PS1="${PS1%\\n*} \[\033[0;36m\]\D{%y-%m-%d} - \t\[\033[;32m\]
 ENV TZ=Asia/Shanghai
 ENV PLAYWRIGHT_MCP_BROWSER=chromium
 ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+# Experimental Code Mode: Claude writes one JavaScript snippet per batch of tool calls.
+ENV CLAUDE_CODE_EXPERIMENTAL_CODE_MODE=1
 ENV PYTHONUNBUFFERED=1
 
 COPY ./.agents /home/kali/workspace/.agents

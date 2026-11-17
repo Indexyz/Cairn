@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -271,5 +272,59 @@ func TestShippedLocalExampleConfigIsValid(t *testing.T) {
 	}
 	if config.Local.CompletedAction != LocalKeep {
 		t.Fatalf("completed action = %q", config.Local.CompletedAction)
+	}
+}
+
+func TestMCPBlockReachesWorkerEnv(t *testing.T) {
+	document := baseYAML + `
+mcp:
+  servers:
+    fs:
+      command: mcp-fs
+      args: ["--root", "/work"]
+      env:
+        TOKEN: secret
+    remote:
+      url: https://mcp.test/sse
+`
+	config := mustParse(t, document)
+	var payload struct {
+		Servers map[string]map[string]any `json:"mcpServers"`
+	}
+	if err := json.Unmarshal([]byte(config.Workers[0].Env["MCP_CONFIG"]), &payload); err != nil {
+		t.Fatalf("mcp env: %v", err)
+	}
+	if payload.Servers["fs"]["command"] != "mcp-fs" || payload.Servers["fs"]["type"] != "stdio" {
+		t.Fatalf("stdio server = %v", payload.Servers["fs"])
+	}
+	if payload.Servers["remote"]["url"] != "https://mcp.test/sse" || payload.Servers["remote"]["type"] != "http" {
+		t.Fatalf("http server = %v", payload.Servers["remote"])
+	}
+}
+
+func TestMCPWorkerOverrideWins(t *testing.T) {
+	override := `    priority: 0
+    env:
+      MCP_CONFIG: '{"mcpServers":{"own":{"command":"x"}}}'`
+	document := strings.Replace(baseYAML, "    priority: 0", override, 1) + `
+mcp:
+  servers:
+    fs:
+      command: mcp-fs
+`
+	config := mustParse(t, document)
+	if config.Workers[0].Env["MCP_CONFIG"] != `{"mcpServers":{"own":{"command":"x"}}}` {
+		t.Fatalf("env = %v", config.Workers[0].Env["MCP_CONFIG"])
+	}
+}
+
+func TestMCPValidationRejectsIncompleteServers(t *testing.T) {
+	document := baseYAML + `
+mcp:
+  servers:
+    broken: {}
+`
+	if _, err := parseYAML(t, document); err == nil || !strings.Contains(err.Error(), "mcp.servers.broken") {
+		t.Fatalf("error = %v", err)
 	}
 }

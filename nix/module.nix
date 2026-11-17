@@ -100,6 +100,15 @@ let
     common_env = cfg.dispatcher.commonEnv;
     workers = map workerToAttr cfg.dispatcher.workers;
   }
+  // optionalAttrs (cfg.dispatcher.mcpServers != { }) {
+    mcp = {
+      servers = builtins.mapAttrs (_: server: {
+        inherit (server) args env headers;
+      }
+      // lib.optionalAttrs (server.command != null) { command = server.command; }
+      // lib.optionalAttrs (server.url != null) { url = server.url; }) cfg.dispatcher.mcpServers;
+    };
+  }
   // optionalAttrs (cfg.dispatcher.execution == "container") {
     container = {
       inherit (cfg.dispatcher.container) image network_mode completed_action cap_add;
@@ -331,6 +340,53 @@ in
               };
             }
           ]
+        '';
+      };
+
+      mcpServers = mkOption {
+        type = types.attrsOf (
+          types.submodule {
+            options = {
+              command = mkOption {
+                type = types.nullOr types.str;
+                default = null;
+                description = "stdio server executable.";
+              };
+              args = mkOption {
+                type = types.listOf types.str;
+                default = [ ];
+                description = "Arguments for the stdio server.";
+              };
+              url = mkOption {
+                type = types.nullOr types.str;
+                default = null;
+                description = "http / sse server URL.";
+              };
+              env = mkOption {
+                type = types.attrsOf types.str;
+                default = { };
+                description = "Server process environment.";
+              };
+              headers = mkOption {
+                type = types.attrsOf types.str;
+                default = { };
+                description = "Headers for http / sse servers.";
+              };
+            };
+          }
+        );
+        default = { };
+        description = ''
+          MCP servers given to every agent: Claude via --mcp-config, Codex via
+          -c overrides. A worker's own env.MCP_CONFIG still wins.
+        '';
+        example = literalExpression ''
+          {
+            filesystem = {
+              command = "mcp-server-filesystem";
+              args = [ "/home/kali/workspace" ];
+            };
+          }
         '';
       };
 

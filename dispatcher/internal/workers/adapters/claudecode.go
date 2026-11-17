@@ -2,6 +2,7 @@
 package adapters
 
 import (
+	"strings"
 	"time"
 
 	"github.com/Indexyz/Cairn/dispatcher/internal/config"
@@ -40,14 +41,27 @@ func (ClaudeCode) DescribeHealth(worker *config.WorkerConfig) string {
 }
 
 // BuildExecute builds the execute argv.
-func (ClaudeCode) BuildExecute(_ *config.WorkerConfig, prompt string, session *string) workers.DriverResult {
-	argv := []string{"claude", "--session-id", deref(session), "--dangerously-skip-permissions", "-p", "--", prompt}
+func (ClaudeCode) BuildExecute(worker *config.WorkerConfig, prompt string, session *string) workers.DriverResult {
+	argv := []string{"claude", "--session-id", deref(session), "--dangerously-skip-permissions"}
+	argv = append(argv, mcpArgs(worker)...)
+	argv = append(argv, "-p", "--", prompt)
 	return workers.DriverResult{Argv: argv, Session: session}
 }
 
 // BuildConclude resumes the session with the conclude prompt.
-func (ClaudeCode) BuildConclude(_ *config.WorkerConfig, prompt, session string) []string {
-	return []string{"claude", "-r", session, "--dangerously-skip-permissions", "-p", "--", prompt}
+func (ClaudeCode) BuildConclude(worker *config.WorkerConfig, prompt, session string) []string {
+	argv := []string{"claude", "-r", session, "--dangerously-skip-permissions"}
+	argv = append(argv, mcpArgs(worker)...)
+	return append(argv, "-p", "--", prompt)
+}
+
+// mcpArgs passes the merged MCP server list to the CLI for this run.
+func mcpArgs(worker *config.WorkerConfig) []string {
+	config := strings.TrimSpace(worker.Env["MCP_CONFIG"])
+	if config == "" {
+		return nil
+	}
+	return []string{"--mcp-config", config}
 }
 
 func deref(value *string) string {

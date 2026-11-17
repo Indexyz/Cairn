@@ -908,6 +908,21 @@ codex exec resume "{session}" --dangerously-bypass-approvals-and-sandbox --model
 | `tasks.explore.timeout` | 是 | `explore` 第一阶段超时 |
 | `tasks.explore.conclude_timeout` | 是 | `explore` 双阶段收尾超时 |
 
+### `mcp.*`
+
+可选的 MCP 服务器表，会以 `MCP_CONFIG`（Claude 兼容的 `{"mcpServers": …}` JSON）注入每个 worker 的 env：
+
+| 字段 | 必填 | 含义 |
+| --- | --- | --- |
+| `mcp.servers.<name>.command` | 二选一 | stdio 服务器的可执行文件 |
+| `mcp.servers.<name>.args` | 否 | 传给 stdio 服务器的参数 |
+| `mcp.servers.<name>.url` | 二选一 | http / sse 服务器地址 |
+| `mcp.servers.<name>.type` | 否 | `stdio` / `http` / `sse`，按 command 或 url 推断 |
+| `mcp.servers.<name>.env` | 否 | 服务器进程环境变量 |
+| `mcp.servers.<name>.headers` | 否 | http / sse 请求头 |
+
+Claude 用 `--mcp-config` 接收该 JSON，Codex 翻译成 `-c mcp_servers.*` 覆盖项。worker 自己的 `env.MCP_CONFIG` 优先于全局 `mcp` 配置。
+
 ### `workers.*`
 
 Worker 模型列表的唯一权威来源是服务端数据库（`GET/PUT /api/models`），`dispatch.yaml` 里的 `workers` 只在数据库为空时被一次性 seed；之后每次调度轮开始前 dispatcher 都会重新拉取，变更下一轮生效。`common_env` 仍会对每个模型生效。并发上限、tick 间隔等运行参数仍来自配置文件，需要重启。
