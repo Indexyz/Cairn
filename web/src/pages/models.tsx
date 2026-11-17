@@ -4,20 +4,15 @@ import { FlaskConical, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-reac
 
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import type { ModelTestResult, TaskType, WorkerModel, WorkerType } from "@/lib/types";
+import type { ModelTestResult, WorkerModel, WorkerType } from "@/lib/types";
+import type { EnvRow, ModelForm } from "@/components/models/model-form";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ModelFormDialog } from "@/components/models/model-form-dialog";
+import { WORKER_TYPES, emptyForm, nextEnvId, toForm, toPayload } from "@/components/models/model-form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -34,70 +29,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-const WORKER_TYPES: WorkerType[] = ["claudecode", "codex", "pi", "mock"];
-const TASK_TYPES: TaskType[] = ["bootstrap", "reason", "explore"];
 
-const TYPE_ENV_KEYS: Record<WorkerType, string[]> = {
-  claudecode: ["ANTHROPIC_MODEL", "ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"],
-  codex: ["CODEX_MODEL", "CODEX_BASE_URL", "OPENAI_API_KEY"],
-  pi: ["PI_MODEL", "PI_BASE_URL", "PI_API_KEY", "PI_PROVIDER_API", "PI_MODEL_CONTEXT_WINDOW"],
-  mock: [],
-};
-
-interface EnvRow {
-  key: string;
-  value: string;
-}
-
-interface ModelForm {
-  name: string;
-  type: WorkerType;
-  task_types: TaskType[];
-  max_running: number;
-  priority: number;
-  env: EnvRow[];
-}
-
-function emptyForm(): ModelForm {
-  return {
-    name: "",
-    type: "claudecode",
-    task_types: ["bootstrap", "reason", "explore"],
-    max_running: 1,
-    priority: 0,
-    env: TYPE_ENV_KEYS.claudecode.map((key) => ({ key, value: "" })),
-  };
-}
-
-function toForm(model: WorkerModel): ModelForm {
-  return {
-    name: model.name,
-    type: model.type,
-    task_types: [...model.task_types],
-    max_running: model.max_running,
-    priority: model.priority,
-    env: Object.entries(model.env).map(([key, value]) => ({ key, value })),
-  };
-}
-
-function toPayload(form: ModelForm): WorkerModel {
-  const env: Record<string, string> = {};
-  for (const row of form.env) {
-    const key = row.key.trim();
-    if (key) env[key] = row.value;
-  }
-  return {
-    name: form.name.trim(),
-    type: form.type,
-    task_types: form.task_types,
-    max_running: form.max_running,
-    priority: form.priority,
-    env,
-  };
-}
-
-export function ModelsPage() {
-  const toast = useToast();
+export function useModelsPage() {  const toast = useToast();
   const { t } = useTranslation();
   const [models, setModels] = useState<WorkerModel[]>([]);
   const [query, setQuery] = useState("");
@@ -139,7 +72,7 @@ export function ModelsPage() {
 
   function openCreate() {
     setOriginalName(null);
-    setForm(emptyForm());
+    setForm(emptyForm(nextEnvId));
   }
 
   function openEdit(model: WorkerModel) {
@@ -147,14 +80,12 @@ export function ModelsPage() {
     setForm(toForm(model));
   }
 
-  function updateEnv(index: number, patch: Partial<EnvRow>) {
+  function updateEnv(id: number, patch: Partial<EnvRow>) {
     setForm((current) =>
       current
         ? {
             ...current,
-            env: current.env.map((row, rowIndex) =>
-              rowIndex === index ? { ...row, ...patch } : row,
-            ),
+            env: current.env.map((row) => (row.id === id ? { ...row, ...patch } : row)),
           }
         : current,
     );
@@ -226,6 +157,57 @@ export function ModelsPage() {
       form.max_running > 0 &&
       form.priority >= 0,
   );
+
+  return {
+    filtered,
+    form,
+    models,
+    openCreate,
+    openEdit,
+    originalName,
+    query,
+    removal,
+    remove,
+    results,
+    save,
+    saving,
+    setForm,
+    setQuery,
+    setRemoval,
+    setType,
+    testModel,
+    testing,
+    type,
+    updateEnv,
+    valid,
+  };
+}
+
+export function ModelsPage() {
+  const {
+    filtered,
+    form,
+    models,
+    openCreate,
+    openEdit,
+    originalName,
+    query,
+    removal,
+    remove,
+    results,
+    save,
+    saving,
+    setForm,
+    setQuery,
+    setRemoval,
+    setType,
+    testModel,
+    testing,
+    type,
+    updateEnv,
+    valid,
+  } = useModelsPage();
+  const { t } = useTranslation();
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -396,203 +378,23 @@ export function ModelsPage() {
         </div>
       </div>
 
-      <Dialog open={!!form} onOpenChange={(open) => !open && setForm(null)}>
-        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {t(originalName ? "models.form.editTitle" : "models.form.newTitle")}
-            </DialogTitle>
-            <DialogDescription>{t("models.form.description")}</DialogDescription>
-          </DialogHeader>
-          {form && (
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="model-name">{t("models.form.name")}</Label>
-                <Input
-                  id="model-name"
-                  value={form.name}
-                  placeholder={t("models.form.namePlaceholder")}
-                  onChange={(event) =>
-                    setForm((current) => (current ? { ...current, name: event.target.value } : current))
-                  }
-                />
-              </div>
+      <ModelFormDialog
+        form={form}
+        setForm={setForm}
+        originalName={originalName}
+        saving={saving}
+        valid={valid}
+        updateEnv={updateEnv}
+        onSave={save}
+      />
 
-              <div className="grid grid-cols-3 gap-3">
-                <div className="grid gap-2">
-                  <Label>{t("models.form.type")}</Label>
-                  <Select
-                    value={form.type}
-                    onValueChange={(value) =>
-                      setForm((current) => {
-                        if (!current) return current;
-                        const nextType = value as WorkerType;
-                        const preset = TYPE_ENV_KEYS[nextType];
-                        const existing = new Map(current.env.map((row) => [row.key, row.value]));
-                        return {
-                          ...current,
-                          type: nextType,
-                          env:
-                            preset.length > 0
-                              ? preset.map((key) => ({ key, value: existing.get(key) ?? "" }))
-                              : current.env,
-                        };
-                      })
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {WORKER_TYPES.map((item) => (
-                        <SelectItem key={item} value={item}>
-                          {item}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="model-priority">{t("models.form.priority")}</Label>
-                  <Input
-                    id="model-priority"
-                    type="number"
-                    min={0}
-                    value={form.priority}
-                    onChange={(event) =>
-                      setForm((current) =>
-                        current ? { ...current, priority: Number(event.target.value) } : current,
-                      )
-                    }
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="model-max">{t("models.form.concurrency")}</Label>
-                  <Input
-                    id="model-max"
-                    type="number"
-                    min={1}
-                    value={form.max_running}
-                    onChange={(event) =>
-                      setForm((current) =>
-                        current ? { ...current, max_running: Number(event.target.value) } : current,
-                      )
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-2">
-                <Label>{t("models.form.taskTypes")}</Label>
-                <div className="flex flex-wrap gap-2">
-                  {TASK_TYPES.map((taskType) => {
-                    const checked = form.task_types.includes(taskType);
-                    return (
-                      <Button
-                        key={taskType}
-                        type="button"
-                        size="sm"
-                        variant={checked ? "default" : "outline"}
-                        onClick={() =>
-                          setForm((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  task_types: checked
-                                    ? current.task_types.filter((item) => item !== taskType)
-                                    : [...current.task_types, taskType],
-                                }
-                              : current,
-                          )
-                        }
-                      >
-                        {taskType}
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="grid gap-2">
-                <div className="flex items-center justify-between">
-                  <Label>{t("models.form.env")}</Label>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    onClick={() =>
-                      setForm((current) =>
-                        current ? { ...current, env: [...current.env, { key: "", value: "" }] } : current,
-                      )
-                    }
-                  >
-                    {t("models.form.addEnv")}
-                  </Button>
-                </div>
-                {form.env.length === 0 && (
-                  <p className="text-xs text-muted-foreground">{t("models.form.noEnv")}</p>
-                )}
-                {form.env.map((row, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      value={row.key}
-                      placeholder="KEY"
-                      className="font-mono text-xs"
-                      onChange={(event) => updateEnv(index, { key: event.target.value })}
-                    />
-                    <Input
-                      value={row.value}
-                      placeholder="value"
-                      className="font-mono text-xs"
-                      onChange={(event) => updateEnv(index, { value: event.target.value })}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() =>
-                        setForm((current) =>
-                          current
-                            ? { ...current, env: current.env.filter((_, rowIndex) => rowIndex !== index) }
-                            : current,
-                        )
-                      }
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
-                ))}
-                <p className="text-[11px] text-muted-foreground">{t("models.form.envNote")}</p>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setForm(null)}>
-              {t("common.cancel")}
-            </Button>
-            <Button onClick={save} disabled={!valid || saving}>
-              {saving ? t("common.saving") : t("common.save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!removal} onOpenChange={(open) => !open && setRemoval(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("models.removal.title")}</DialogTitle>
-            <DialogDescription>
-              {t("models.removal.body", { name: removal?.name ?? "" })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRemoval(null)}>
-              {t("common.cancel")}
-            </Button>
-            <Button variant="destructive" onClick={remove}>
-              {t("common.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!removal}
+        title={t("models.removal.title")}
+        description={t("models.removal.body", { name: removal?.name ?? "" })}
+        onCancel={() => setRemoval(null)}
+        onConfirm={remove}
+      />
     </div>
   );
 }

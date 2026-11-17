@@ -13,6 +13,7 @@ import type {
 } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -90,8 +91,8 @@ function toForm(channel: NotificationChannel): ChannelForm {
   };
 }
 
-export function NotificationsPage() {
-  const toast = useToast();
+
+export function useNotificationsPage() {  const toast = useToast();
   const { t } = useTranslation();
   const [channels, setChannels] = useState<NotificationChannel[]>([]);
   const [form, setForm] = useState<ChannelForm | null>(null);
@@ -204,6 +205,45 @@ export function NotificationsPage() {
       form.events.length > 0 &&
       KIND_FIELDS[form.kind].every((key) => form.config[key]?.trim()),
   );
+
+  return {
+    channels,
+    editing,
+    form,
+    openCreate,
+    openEdit,
+    removal,
+    remove,
+    save,
+    saving,
+    setForm,
+    setRemoval,
+    test,
+    testing,
+    toggle,
+    valid,
+  };
+}
+
+export function NotificationsPage() {
+  const {
+    channels,
+    editing,
+    form,
+    openCreate,
+    openEdit,
+    removal,
+    remove,
+    save,
+    saving,
+    setForm,
+    setRemoval,
+    test,
+    testing,
+    toggle,
+    valid,
+  } = useNotificationsPage();
+  const { t } = useTranslation();
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -459,24 +499,13 @@ export function NotificationsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!removal} onOpenChange={(open) => !open && setRemoval(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("notifications.removal.title")}</DialogTitle>
-            <DialogDescription>
-              {t("notifications.removal.body", { name: removal?.name ?? "" })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRemoval(null)}>
-              {t("common.cancel")}
-            </Button>
-            <Button variant="destructive" onClick={remove}>
-              {t("common.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!removal}
+        title={t("notifications.removal.title")}
+        description={t("notifications.removal.body", { name: removal?.name ?? "" })}
+        onCancel={() => setRemoval(null)}
+        onConfirm={remove}
+      />
     </div>
   );
 }

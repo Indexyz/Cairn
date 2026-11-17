@@ -46,7 +46,15 @@ export function formatDurationMs(ms: number): string {
   return `${seconds}s`;
 }
 
-export function useFormat() {
+export interface UseFormatResult {
+  locale: string | undefined;
+  time: (ts: string | null | undefined) => string;
+  date: (ts: string | null | undefined) => string;
+  timelineDate: (ts: string | null | undefined) => string;
+  duration: (ms: number) => string;
+}
+
+export function useFormat(): UseFormatResult {
   const { i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language;
   return useMemo(

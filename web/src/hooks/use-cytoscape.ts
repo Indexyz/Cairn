@@ -51,6 +51,7 @@ export function useCytoscape(options: Options) {
 
   const positionsKey = useRef<ProjectDetail | null>(null);
   const signatureRef = useRef<string | null>(null);
+  const fadeFrames = useRef<Set<number>>(new Set());
   // The container only exists once the project is loaded, so initialisation must re-run then.
   const hasProject = Boolean(project);
 
@@ -90,6 +91,8 @@ export function useCytoscape(options: Options) {
       instance.destroy();
       cyRef.current = null;
       signatureRef.current = null;
+      fadeFrames.current.forEach((frame) => window.cancelAnimationFrame(frame));
+      fadeFrames.current.clear();
       delete (window as unknown as { __cy?: Core }).__cy;
     };
   }, [containerRef, resetKey, hasProject]);
@@ -233,7 +236,8 @@ export function useCytoscape(options: Options) {
         const created = cy.add(withPosition);
         added += 1;
         created.addClass("fresh");
-        window.setTimeout(() => {
+        const fadeFrame = window.requestAnimationFrame(() => {
+          fadeFrames.current.delete(fadeFrame);
           if (!created.inside()) return;
           created.animate(
             { style: { opacity: 1 } },
@@ -245,7 +249,8 @@ export function useCytoscape(options: Options) {
             },
           );
           created.removeClass("fresh");
-        }, 30);
+        });
+        fadeFrames.current.add(fadeFrame);
         structural = true;
       } else if (
         existing.data("nodeType") !== element.data.nodeType ||

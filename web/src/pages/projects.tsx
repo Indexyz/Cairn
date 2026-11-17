@@ -1,40 +1,23 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   CalendarClock,
   ChevronDown,
   ChevronRight,
-  Download,
-  FileCode2,
-  GitFork,
-  Pencil,
   Plus,
-  RotateCcw,
   Search,
   Square,
-  Trash2,
 } from "lucide-react";
 
-import { useFormat } from "@/lib/format";
 import { usePrefs } from "@/hooks/use-prefs";
 import { useToast } from "@/hooks/use-toast";
-import { api, copyText, fetchText } from "@/lib/api";
-import { downloadText, snapshotFilename } from "@/lib/download";
+import { api, fetchText } from "@/lib/api";
 import type { ProjectDetail, ProjectStatus, ProjectSummary, Schedule } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { ProjectRow } from "@/components/projects/project-row";
+import { ProjectsDialogs } from "@/components/projects/projects-dialogs";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -42,8 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -53,18 +35,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-const STATUS_BADGE: Record<ProjectStatus, "running" | "paused" | "blocked" | "done"> = {
-  active: "running",
-  stopped: "paused",
-  blocked: "blocked",
-  completed: "done",
-};
 
-export function ProjectsPage() {
-  const toast = useToast();
+
+export function useProjectsPage() {  const toast = useToast();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const format = useFormat();
   const { actorName } = usePrefs();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [schedules, setSchedules] = useState<Record<string, string>>({});
@@ -80,7 +55,7 @@ export function ProjectsPage() {
     goal: "",
     bootstrap: true,
     maxSteps: "",
-    hints: [""],
+    hints: [{ id: 0, content: "" }],
   });
 
   const [rename, setRename] = useState<{ id: string; title: string } | null>(null);
@@ -91,6 +66,7 @@ export function ProjectsPage() {
   const [forkTitle, setForkTitle] = useState("");
   const [forkingBusy, setForkingBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const nextHintId = useRef(1);
   const [snapshot, setSnapshot] = useState<{ id: string; title: string; text: string } | null>(null);
 
   async function load() {
@@ -172,7 +148,7 @@ export function ProjectsPage() {
 
   async function createProject() {
     try {
-      const hints = newForm.hints.map((hint) => hint.trim()).filter(Boolean);
+      const hints = newForm.hints.map((hint) => hint.content.trim()).filter(Boolean);
       const created = await api<ProjectDetail>("POST", "/projects", {
         title: newForm.title,
         origin: newForm.origin,
@@ -182,7 +158,14 @@ export function ProjectsPage() {
         hints: hints.length > 0 ? hints.map((content) => ({ content, creator: actorName })) : undefined,
       });
       setNewOpen(false);
-      setNewForm({ title: "", origin: "", goal: "", bootstrap: true, maxSteps: "", hints: [""] });
+      setNewForm({
+        title: "",
+        origin: "",
+        goal: "",
+        bootstrap: true,
+        maxSteps: "",
+        hints: [{ id: nextHintId.current++, content: "" }],
+      });
       await load();
       toast.show(t("projects.toast.created"));
       navigate(`/projects/${created.project.id}`);
@@ -292,101 +275,94 @@ export function ProjectsPage() {
     }
   }
 
-  function renderProjectRow(project: ProjectSummary, inGroup: boolean) {
-    return (
-      <TableRow key={project.id}>
-        <TableCell className={cn("font-mono text-xs text-muted-foreground", inGroup && "pl-9")}>
-          {project.id}
-        </TableCell>
-        <TableCell className="max-w-72">
-          <Link
-            to={`/projects/${project.id}`}
-            className="block truncate font-medium hover:underline"
-            title={project.title}
-          >
-            {project.title}
-          </Link>
-          {project.reason && (
-            <p className="truncate text-[11px] text-sky-600">
-              {t("projects.reasonRunning", {
-                worker: project.reason.worker,
-                time: format.time(project.reason.last_heartbeat_at),
-              })}
-            </p>
-          )}
-        </TableCell>
-        <TableCell>
-          <Badge variant={STATUS_BADGE[project.status]}>{t(`common.status.${project.status}`)}</Badge>
-        </TableCell>
-        <TableCell className="text-right tabular-nums">{project.fact_count}</TableCell>
-        <TableCell className="text-right tabular-nums">
-          {project.intent_count}
-          {project.max_steps !== null && <span className="text-muted-foreground"> / {project.max_steps}</span>}
-          {project.working_intent_count > 0 && (
-            <span className="ml-1 text-amber-600">+{project.working_intent_count}</span>
-          )}
-        </TableCell>
-        <TableCell className="text-right tabular-nums">{project.hint_count}</TableCell>
-        <TableCell className="text-xs text-muted-foreground">{format.date(project.created_at)}</TableCell>
-        <TableCell>
-          <div className="flex items-center justify-end gap-1">
-            <Button variant="outline" size="sm" onClick={() => void openSnapshot(project)}>
-              <FileCode2 className="size-3.5" />
-              {t("projects.snapshot")}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title={t("common.edit")}
-              onClick={() => setRename({ id: project.id, title: project.title })}
-            >
-              <Pencil className="size-3.5" />
-            </Button>
-            {project.status === "active" && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                title={t("project.stop")}
-                onClick={() => void setProjectStatus(project.id, "stopped")}
-              >
-                <Square className="size-3.5" />
-              </Button>
-            )}
-            {(project.status === "stopped" || project.status === "blocked") && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                title={t("project.resume")}
-                onClick={() => void setProjectStatus(project.id, "active")}
-              >
-                <RotateCcw className="size-3.5" />
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title={t("projects.fork.action")}
-              onClick={() => {
-                setForkTitle(`${project.title} (fork)`);
-                setForking({ id: project.id, title: project.title });
-              }}
-            >
-              <GitFork className="size-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-destructive hover:text-destructive"
-              title={t("common.delete")}
-              onClick={() => setRemoval({ id: project.id, title: project.title })}
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
-          </div>
-        </TableCell>
-      </TableRow>
-    );
-  }
+  return {
+    counts,
+    createProject,
+    deleteProject,
+    actorName,
+    deleting,
+    expandedGroups,
+    filtered,
+    forkProject,
+    forkTitle,
+    forking,
+    forkingBusy,
+    newForm,
+    newOpen,
+    nextHintId,
+    query,
+    removal,
+    rename,
+    renameProject,
+    reopen,
+    reopenProject,
+    reopenText,
+    rows,
+    setForkTitle,
+    setForking,
+    setNewForm,
+    setNewOpen,
+    setQuery,
+    setRemoval,
+    setRename,
+    setReopen,
+    setReopenText,
+    setSnapshot,
+    setProjectStatus,
+    openSnapshot,
+    snapshot,
+    status,
+    setStatusFilter: setStatus,
+    stopAll,
+    stopping,
+    toggleGroup,
+  };
+}
+
+export function ProjectsPage() {
+  const {
+    counts,
+    createProject,
+    deleteProject,
+    deleting,
+    expandedGroups,
+    filtered,
+    forkProject,
+    forkTitle,
+    forking,
+    forkingBusy,
+    newForm,
+    newOpen,
+    nextHintId,
+    query,
+    removal,
+    rename,
+    renameProject,
+    reopen,
+    reopenProject,
+    reopenText,
+    rows,
+    setForkTitle,
+    setForking,
+    setNewForm,
+    setNewOpen,
+    setQuery,
+    setRemoval,
+    setRename,
+    setReopen,
+    setReopenText,
+    setSnapshot,
+    setProjectStatus,
+    openSnapshot,
+    actorName,
+    setStatusFilter,
+    snapshot,
+    status,
+    stopAll,
+    stopping,
+    toggleGroup,
+  } = useProjectsPage();
+  const { t } = useTranslation();
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -427,7 +403,7 @@ export function ProjectsPage() {
                   className="pl-8"
                 />
               </div>
-              <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
+              <Select value={status} onValueChange={(value) => setStatusFilter(value as typeof status)}>
                 <SelectTrigger className="w-36">
                   <SelectValue />
                 </SelectTrigger>
@@ -472,7 +448,19 @@ export function ProjectsPage() {
                 )}
                 {rows.map((row) =>
                   row.kind === "project" ? (
-                    renderProjectRow(row.project, false)
+                    <ProjectRow
+                      key={row.project.id}
+                      project={row.project}
+                      inGroup={false}
+                      onRename={(project) => setRename({ id: project.id, title: project.title })}
+                      onFork={(project) => {
+                        setForkTitle(`${project.title} (fork)`);
+                        setForking({ id: project.id, title: project.title });
+                      }}
+                      onSnapshot={(project) => void openSnapshot(project)}
+                      onStatus={(project, next) => void setProjectStatus(project.id, next)}
+                      onDelete={(project) => setRemoval({ id: project.id, title: project.title })}
+                    />
                   ) : (
                     <Fragment key={row.scheduleId}>
                       <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -509,7 +497,21 @@ export function ProjectsPage() {
                         </TableCell>
                       </TableRow>
                       {expandedGroups.has(row.scheduleId) &&
-                        row.projects.map((project) => renderProjectRow(project, true))}
+                        row.projects.map((project) => (
+                          <ProjectRow
+                            key={project.id}
+                            project={project}
+                            inGroup
+                            onRename={(item) => setRename({ id: item.id, title: item.title })}
+                            onFork={(item) => {
+                              setForkTitle(`${item.title} (fork)`);
+                              setForking({ id: item.id, title: item.title });
+                            }}
+                            onSnapshot={(item) => void openSnapshot(item)}
+                            onStatus={(item, next) => void setProjectStatus(item.id, next)}
+                            onDelete={(item) => setRemoval({ id: item.id, title: item.title })}
+                          />
+                        ))}
                     </Fragment>
                   ),
                 )}
@@ -523,220 +525,35 @@ export function ProjectsPage() {
         </div>
       </div>
 
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{t("projects.new.title")}</DialogTitle>
-            <DialogDescription>{t("projects.new.description")}</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-3">
-            <Input
-              value={newForm.title}
-              onChange={(event) => setNewForm((form) => ({ ...form, title: event.target.value }))}
-              placeholder={t("projects.new.projectTitle")}
-            />
-            <Textarea
-              value={newForm.origin}
-              onChange={(event) => setNewForm((form) => ({ ...form, origin: event.target.value }))}
-              placeholder={t("projects.new.origin")}
-              rows={2}
-            />
-            <Textarea
-              value={newForm.goal}
-              onChange={(event) => setNewForm((form) => ({ ...form, goal: event.target.value }))}
-              placeholder={t("projects.new.goal")}
-              rows={2}
-            />
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={newForm.bootstrap}
-                onCheckedChange={(checked) => setNewForm((form) => ({ ...form, bootstrap: checked }))}
-              />
-              <Label>{t("projects.new.bootstrap")}</Label>
-            </div>
-            <div className="grid gap-1">
-              <Label htmlFor="new-max-steps" className="text-xs text-muted-foreground">
-                {t("projects.new.maxSteps")}
-              </Label>
-              <Input
-                id="new-max-steps"
-                type="number"
-                min={1}
-                value={newForm.maxSteps}
-                placeholder={t("projects.new.maxStepsPlaceholder")}
-                onChange={(event) =>
-                  setNewForm((form) => ({ ...form, maxSteps: event.target.value }))
-                }
-              />
-              <p className="text-[11px] text-muted-foreground">{t("projects.new.maxStepsHint")}</p>
-            </div>
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground">{t("projects.new.hints")}</Label>
-                <Button
-                  variant="link"
-                  size="sm"
-                  onClick={() => setNewForm((form) => ({ ...form, hints: [...form.hints, ""] }))}
-                >
-                  + {t("common.add")}
-                </Button>
-              </div>
-              {newForm.hints.map((hint, index) => (
-                <Input
-                  key={index}
-                  value={hint}
-                  placeholder={t("projects.new.hintPlaceholder")}
-                  onChange={(event) =>
-                    setNewForm((form) => ({
-                      ...form,
-                      hints: form.hints.map((item, itemIndex) =>
-                        itemIndex === index ? event.target.value : item,
-                      ),
-                    }))
-                  }
-                />
-              ))}
-              <p className="text-[11px] text-muted-foreground">
-                {t("projects.new.hintCreator", { actor: actorName })}
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOpen(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              onClick={createProject}
-              disabled={!newForm.title || !newForm.origin || !newForm.goal}
-            >
-              {t("common.create")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!rename} onOpenChange={(open) => !open && setRename(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("projects.rename.title")}</DialogTitle>
-            <DialogDescription>{rename ? `${rename.id} - ${rename.title}` : ""}</DialogDescription>
-          </DialogHeader>
-          <Input
-            value={rename?.title ?? ""}
-            onChange={(event) =>
-              setRename((current) => (current ? { ...current, title: event.target.value } : current))
-            }
-          />
-          <p className="text-[11px] text-muted-foreground">{t("projects.rename.hint")}</p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRename(null)}>
-              {t("common.cancel")}
-            </Button>
-            <Button onClick={renameProject} disabled={!rename?.title}>
-              {t("common.save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!reopen} onOpenChange={(open) => !open && setReopen(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("projects.reopen.title")}</DialogTitle>
-            <DialogDescription>{reopen ? `${reopen.id} - ${reopen.title}` : ""}</DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={reopenText}
-            onChange={(event) => setReopenText(event.target.value)}
-            placeholder={t("projects.reopen.placeholder")}
-            rows={3}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReopen(null)}>
-              {t("common.cancel")}
-            </Button>
-            <Button onClick={reopenProject} disabled={!reopenText}>
-              {t("project.reopen")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!forking} onOpenChange={(open) => !open && setForking(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("projects.fork.title")}</DialogTitle>
-            <DialogDescription>
-              {t("projects.fork.description", { label: forking ? `${forking.id} - ${forking.title}` : "" })}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-2">
-            <Label htmlFor="fork-title">{t("projects.fork.titleLabel")}</Label>
-            <Input id="fork-title" value={forkTitle} onChange={(event) => setForkTitle(event.target.value)} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setForking(null)} disabled={forkingBusy}>
-              {t("common.cancel")}
-            </Button>
-            <Button onClick={forkProject} disabled={forkingBusy}>
-              <GitFork className="size-4" />
-              {forkingBusy ? t("common.saving") : t("projects.fork.confirm")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!removal} onOpenChange={(open) => !open && setRemoval(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("projects.removal.title")}</DialogTitle>
-            <DialogDescription>
-              {t("projects.removal.body", { label: removal ? `${removal.id} - ${removal.title}` : "" })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRemoval(null)} disabled={deleting}>
-              {t("common.cancel")}
-            </Button>
-            <Button variant="destructive" onClick={deleteProject} disabled={deleting}>
-              {deleting ? t("common.deleting") : t("common.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!snapshot} onOpenChange={(open) => !open && setSnapshot(null)}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>{t("projects.snapshotTitle")}</DialogTitle>
-            <DialogDescription>{snapshot?.title}</DialogDescription>
-          </DialogHeader>
-          <div className={cn("max-h-[60vh] overflow-auto rounded-lg border bg-muted/40 p-3")}>
-            <pre className="text-xs leading-5">{snapshot?.text}</pre>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => snapshot && downloadText(snapshotFilename(snapshot.id), snapshot.text)}
-            >
-              <Download className="size-4" />
-              {t("common.download")}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() =>
-                snapshot &&
-                copyText(snapshot.text)
-                  .then(() => toast.show(t("common.copied")))
-                  .catch(() => toast.show(t("common.copyFailed"), "error"))
-              }
-            >
-              {t("common.copy")}
-            </Button>
-            <Button onClick={() => setSnapshot(null)}>{t("common.close")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ProjectsDialogs
+        newOpen={newOpen}
+        setNewOpen={setNewOpen}
+        newForm={newForm}
+        setNewForm={setNewForm}
+        nextHintId={nextHintId}
+        actorName={actorName}
+        createProject={createProject}
+        rename={rename}
+        setRename={setRename}
+        renameProject={renameProject}
+        reopen={reopen}
+        setReopen={setReopen}
+        reopenText={reopenText}
+        setReopenText={setReopenText}
+        reopenProject={reopenProject}
+        forking={forking}
+        setForking={setForking}
+        forkTitle={forkTitle}
+        setForkTitle={setForkTitle}
+        forkProject={forkProject}
+        forkingBusy={forkingBusy}
+        removal={removal}
+        setRemoval={setRemoval}
+        deleteProject={deleteProject}
+        snapshot={snapshot}
+        setSnapshot={setSnapshot}
+        deleting={deleting}
+      />
     </div>
   );
 }
