@@ -57,6 +57,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./container
+          build-args: |
+            GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ steps.meta.outputs.image }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache-${{ matrix.suffix }},ignore-error=true

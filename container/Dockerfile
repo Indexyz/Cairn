@@ -1,18 +1,26 @@
 # syntax=docker/dockerfile:1
+#
+# The agent CLIs and hacker tools below float on their latest release; rebuild the
+# image to pick up fixes. Pin a version if you need a reproducible image.
 
 FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS kerbrute
 
 ARG TARGETOS
 ARG TARGETARCH
+# Optional: lifts the anonymous GitHub API rate limit during the build.
+ARG GITHUB_TOKEN=""
 
 RUN apk add --no-cache git
-RUN git clone --depth 1 --branch v1.0.3 https://github.com/ropnop/kerbrute.git /src
+RUN tag=$(wget -qO- ${GITHUB_TOKEN:+--header="Authorization: Bearer $GITHUB_TOKEN"} https://api.github.com/repos/ropnop/kerbrute/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1) && \
+    test -n "$tag" && \
+    git clone --depth 1 --branch "$tag" https://github.com/ropnop/kerbrute.git /src
 WORKDIR /src
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /kerbrute .
 
 FROM kalilinux/kali-rolling:latest
 
 ARG TARGETARCH
+ARG GITHUB_TOKEN=""
 
 RUN apt update && \
     apt -y install kali-linux-headless && \
@@ -35,14 +43,19 @@ RUN sudo apt update && \
     cd /tmp && playwright-cli install
 
 RUN cd /tmp && \
-    wget -q "https://github.com/projectdiscovery/katana/releases/download/v1.5.0/katana_1.5.0_linux_${TARGETARCH}.zip" -O katana.zip && \
-    wget -q "https://github.com/projectdiscovery/nuclei/releases/download/v3.7.1/nuclei_3.7.1_linux_${TARGETARCH}.zip" -O nuclei.zip && \
-    wget -q "https://github.com/hahwul/dalfox/releases/download/v2.12.0/dalfox-linux-${TARGETARCH}.tar.gz" -O dalfox.tar.gz && \
-    wget -q "https://github.com/BishopFox/cloudfox/releases/download/v2.0.1/cloudfox-linux-${TARGETARCH}.zip" -O cloudfox.zip && \
+    latest() { wget -qO- ${GITHUB_TOKEN:+--header="Authorization: Bearer $GITHUB_TOKEN"} "https://api.github.com/repos/$1/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1; } && \
+    KATANA="$(latest projectdiscovery/katana)" && NUCLEI="$(latest projectdiscovery/nuclei)" && \
+    DALFOX="$(latest hahwul/dalfox)" && \
+    test -n "$KATANA" && test -n "$NUCLEI" && test -n "$DALFOX" && \
+    case "$TARGETARCH" in amd64) DALFOX_ARCH=x86_64 ;; arm64) DALFOX_ARCH=aarch64 ;; *) DALFOX_ARCH="$TARGETARCH" ;; esac && \
+    wget -q "https://github.com/projectdiscovery/katana/releases/download/${KATANA}/katana_${KATANA#v}_linux_${TARGETARCH}.zip" -O katana.zip && \
+    wget -q "https://github.com/projectdiscovery/nuclei/releases/download/${NUCLEI}/nuclei_${NUCLEI#v}_linux_${TARGETARCH}.zip" -O nuclei.zip && \
+    wget -q "https://github.com/hahwul/dalfox/releases/download/${DALFOX}/dalfox-${DALFOX}-linux-${DALFOX_ARCH}.tar.gz" -O dalfox.tar.gz && \
+    wget -q "https://github.com/BishopFox/cloudfox/releases/latest/download/cloudfox-linux-${TARGETARCH}.zip" -O cloudfox.zip && \
     git clone --depth 1 "https://github.com/projectdiscovery/nuclei-templates.git" /home/kali/.local/nuclei-templates && \
     unzip -q katana.zip katana && sudo mv katana /usr/local/bin/ && \
     unzip -q nuclei.zip nuclei && sudo mv nuclei /usr/local/bin/ && \
-    tar -xzf dalfox.tar.gz && sudo mv "dalfox-linux-${TARGETARCH}" /usr/local/bin/dalfox && \
+    tar -xzf dalfox.tar.gz && sudo install -m 0755 "dalfox-${DALFOX}-linux-${DALFOX_ARCH}/dalfox" /usr/local/bin/dalfox && \
     unzip -q cloudfox.zip cloudfox/cloudfox && sudo mv cloudfox/cloudfox /usr/local/bin/ && \
     nuclei -ut && \
     sudo rm -rf /tmp/*
@@ -75,9 +88,9 @@ RUN sudo apt update && \
 RUN pip3 install tccli awscli --break-system-packages && \
     sudo bash -c "$(curl -fsSL https://aliyuncli.alicdn.com/install.sh)"
 
-RUN sudo npm install -g @openai/codex@0.118.0
-RUN sudo npm install -g @anthropic-ai/claude-code@2.1.326
-RUN sudo npm install -g @earendil-works/pi-coding-agent@1.5.2
+RUN sudo npm install -g @openai/codex@latest
+RUN sudo npm install -g @anthropic-ai/claude-code@latest
+RUN sudo npm install -g @earendil-works/pi-coding-agent@latest
 
 COPY --from=kerbrute /kerbrute /usr/local/bin/kerbrute
 
