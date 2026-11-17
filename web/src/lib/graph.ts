@@ -454,9 +454,10 @@ export function highlightFact(cy: Core, project: ProjectDetail, factId: string, 
   const { upstreamFacts, upstreamIntents } = collectFactLineage(project, factId);
   const nodeIds = new Set<string>(upstreamFacts);
   const edgeIds = new Set<string>();
+  const intentsById = new Map(project.intents.map((intent) => [intent.id, intent]));
 
   for (const intentId of upstreamIntents) {
-    const intent = project.intents.find((item) => item.id === intentId);
+    const intent = intentsById.get(intentId);
     if (intent) collectIntentElements(intent, nodeIds, edgeIds);
   }
 

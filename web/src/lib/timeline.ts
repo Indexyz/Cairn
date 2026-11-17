@@ -86,8 +86,9 @@ export function buildTimeline(project: ProjectDetail | null): TimelineEvent[] {
   if (!project) return [];
   const events: TimelineEvent[] = [];
   let order = 0;
-  const origin = project.facts.find((fact) => fact.id === "origin");
-  const goal = project.facts.find((fact) => fact.id === "goal");
+  const factsById = new Map(project.facts.map((fact) => [fact.id, fact]));
+  const origin = factsById.get("origin");
+  const goal = factsById.get("goal");
 
   events.push({
     id: `project-created-${project.project.id}`,
@@ -159,7 +160,7 @@ export function buildTimeline(project: ProjectDetail | null): TimelineEvent[] {
       continue;
     }
 
-    const fact = project.facts.find((item) => item.id === intent.to);
+    const fact = factsById.get(intent.to);
     events.push({
       id: `intent-concluded-${intent.id}`,
       type: "intent_concluded",

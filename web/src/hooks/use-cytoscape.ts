@@ -39,9 +39,15 @@ export function useCytoscape(options: Options) {
   const { containerRef, project, layoutMode, selectedNode, selectedFacts, resetKey } = options;
   const cyRef = useRef<Core | null>(null);
   const handlers = useRef(options);
-  handlers.current = options;
   const layoutRef = useRef<LayoutMode>(layoutMode);
-  layoutRef.current = layoutMode;
+
+  // Written in effects rather than during render: React may replay or drop render work.
+  useEffect(() => {
+    handlers.current = options;
+  });
+  useEffect(() => {
+    layoutRef.current = layoutMode;
+  }, [layoutMode]);
 
   const positionsKey = useRef<ProjectDetail | null>(null);
   const signatureRef = useRef<string | null>(null);
@@ -182,6 +188,12 @@ export function useCytoscape(options: Options) {
         .map((element) => element.data.id as string),
     );
     const previous = snapshotPositions();
+    const intentsById = new Map(project.intents.map((intent) => [intent.id, intent]));
+    const intentByTarget = new Map(
+      project.intents
+        .filter((intent) => intent.to !== null)
+        .map((intent) => [intent.to as string, intent]),
+    );
     let structural = false;
     let added = 0;
 
@@ -206,12 +218,12 @@ export function useCytoscape(options: Options) {
         if (!("source" in element.data)) {
           const nodeData = element.data;
           if (nodeData.intentId) {
-            const intent = project.intents.find((item) => item.id === nodeData.intentId);
+            const intent = intentsById.get(nodeData.intentId as string);
             const position =
               previous.get(id) ?? (intent ? anchorFromIds(intent.from, previous, 32) : null);
             if (position) withPosition = { ...element, position };
           } else {
-            const producing = project.intents.find((intent) => intent.to === id);
+            const producing = intentByTarget.get(id);
             const placeholder = producing ? previous.get(`_ph_${producing.id}`) : undefined;
             const position =
               placeholder ?? (producing ? anchorFromIds(producing.from, previous, 44) : null);

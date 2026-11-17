@@ -233,12 +233,13 @@ export function ProjectPage() {
     return () => window.clearInterval(timer);
   }, [projectId, replay.active, load]);
 
-  const projectRef = useRef<ProjectDetail | null>(null);
-  projectRef.current = project;
   const payloadRef = useRef<string | null>(null);
   const openEntryRef = useRef(openTimelineEntry);
-  openEntryRef.current = openTimelineEntry;
   const handleEntryOpen = useCallback((entry: TimelineEvent) => openEntryRef.current(entry), []);
+  // Keep the latest handler for memoised rows without writing the ref during render.
+  useEffect(() => {
+    openEntryRef.current = openTimelineEntry;
+  });
 
   // Rebuild the timeline only when its inputs actually change, not on every poll.
   const timelineKey = useMemo(() => {
@@ -262,7 +263,7 @@ export function ProjectPage() {
         .filter((event) => event.type !== "reason_started")
         .map((event, index, list) => ({ ...event, isLast: index === list.length - 1 }));
     }
-    return buildTimeline(projectRef.current);
+    return buildTimeline(project);
   }, [timelineKey, replay]);
 
   const { fit, centerOnFact, centerOnIntent } = useCytoscape({
@@ -308,7 +309,7 @@ export function ProjectPage() {
   }, [project, selectedNode]);
 
   const groups = useMemo(
-    () => (projectRef.current ? collectIntentGroups(projectRef.current) : new Map()),
+    () => (project ? collectIntentGroups(project) : new Map()),
     [timelineKey],
   );
   const selectedGroup = useMemo(
