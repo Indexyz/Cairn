@@ -199,7 +199,7 @@ updated_at
 | `project_completed` | `complete` 成功 |
 | `project_reopened` | `reopen` 成功 |
 
-投递发生在响应之后（FastAPI background task），因此发送失败不会让触发它的写操作回滚。消息格式按渠道组织：Discord 用 `content`，Telegram 发往 `sendMessage`，webhook 收到 `{event, project_id, title, text}` 的 JSON POST。凭据以明文存储。
+投递在响应提交之后异步进行，因此发送失败不会让触发它的写操作回滚。消息格式按渠道组织：Discord 用 `content`，Telegram 发往 `sendMessage`，webhook 收到 `{event, project_id, title, text}` 的 JSON POST。凭据以明文存储。
 
 ### Settings
 
