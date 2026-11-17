@@ -67,6 +67,12 @@ const zh_CN: LocaleSchema = {
       confirm: "Fork",
     },
     perPage: "每页 20 条",
+    group: {
+      runs: "{{count}} 次运行",
+      expand: "展开运行记录",
+      collapse: "收起运行记录",
+      openSchedule: "打开定时任务",
+    },
     pagination: "1-{{shown}} / 共 {{total}} 条",
     new: {
       title: "新建项目",
@@ -179,6 +185,14 @@ const zh_CN: LocaleSchema = {
       to: "结论",
       worker: "执行者",
       created: "创建时间",
+    },
+    group: {
+      title: "Cron 任务",
+      count: "{{count}} 个任务",
+      hint: "点开一个任务查看详情",
+      concluded: "已结论",
+      running: "进行中",
+      unclaimed: "未认领",
     },
     timeline: {
       sequence: "顺序",

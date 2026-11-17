@@ -298,3 +298,47 @@ func TestDeleteScheduleKeepsProjects(t *testing.T) {
 		t.Fatalf("schedule_id should be cleared, got %v", scheduleIDColumn.String)
 	}
 }
+
+func TestProjectsExposeTheirSchedule(t *testing.T) {
+	harness := newTestApp(t)
+	scheduleID, _ := createSchedule(t, harness)
+	harness.json(t, http.MethodPost, "/schedules/"+scheduleID+"/run", nil)
+	projectID := scheduleField(t, harness, scheduleID, "last_project_id")
+
+	status, raw := harness.request(t, http.MethodGet, "/projects", nil)
+	if status != http.StatusOK {
+		t.Fatalf("list: %d %s", status, raw)
+	}
+	var listed []map[string]any
+	if err := json.Unmarshal(raw, &listed); err != nil {
+		t.Fatalf("decode list: %v", err)
+	}
+	found := false
+	for _, project := range listed {
+		if project["id"] != projectID {
+			continue
+		}
+		found = true
+		if project["schedule_id"] != scheduleID {
+			t.Fatalf("schedule_id = %v, want %s", project["schedule_id"], scheduleID)
+		}
+	}
+	if !found {
+		t.Fatalf("project %s missing from the list", projectID)
+	}
+}
+
+func TestManualProjectsHaveNoSchedule(t *testing.T) {
+	harness := newTestApp(t)
+
+	status, created := harness.json(t, http.MethodPost, "/projects", map[string]any{
+		"title": "manual", "origin": "o", "goal": "g",
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("create: %d %v", status, created)
+	}
+	project := created["project"].(map[string]any)
+	if project["schedule_id"] != nil {
+		t.Fatalf("schedule_id = %v, want nil", project["schedule_id"])
+	}
+}

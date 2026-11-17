@@ -9,7 +9,11 @@ import "@/styles.css";
 
 declare global {
   interface Window {
-    __cy?: { nodes: () => { length: number }; edges: () => { length: number } };
+    __cy?: {
+      nodes: (selector?: string) => { length: number };
+      edges: () => { length: number };
+      getElementById: (id: string) => { emit: (event: string) => void };
+    };
   }
 }
 

@@ -67,6 +67,12 @@ const ja: LocaleSchema = {
       confirm: "フォーク",
     },
     perPage: "1 ページ 20 件",
+    group: {
+      runs: "{{count}} 回の実行",
+      expand: "実行履歴を開く",
+      collapse: "実行履歴を閉じる",
+      openSchedule: "スケジュールを開く",
+    },
     pagination: "1-{{shown}} / 全 {{total}} 件",
     new: {
       title: "新規プロジェクト",
@@ -179,6 +185,14 @@ const ja: LocaleSchema = {
       to: "結論",
       worker: "実行者",
       created: "作成日時",
+    },
+    group: {
+      title: "Cron ジョブ",
+      count: "{{count}} 件のタスク",
+      hint: "タスクを選ぶと詳細を開きます",
+      concluded: "結論済み",
+      running: "実行中",
+      unclaimed: "未引き受け",
     },
     timeline: {
       sequence: "順序",

@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { api, copyText, fetchText } from "@/lib/api";
 import { downloadText, snapshotFilename } from "@/lib/download";
 import { LAYOUT_MODES, useFormat, type LayoutMode } from "@/lib/format";
+import { collectIntentGroups, groupNodeId } from "@/lib/graph";
 import { buildTimeline, isBootstrapIntent, timelineEventBadge, timelineEventBadgeClass, timelineEventDotClass, timelineEventIsInteractive, timelineEventTriggersGraphFocus } from "@/lib/timeline";
 import type { Intent, ProjectDetail, ProjectStatus, Selection, TimelineEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -274,7 +275,9 @@ export function ProjectPage() {
     onNodeTap: (node: NodeSingular, shiftKey: boolean) => {
       const nodeType = node.data("nodeType") as string;
       const id = node.data("id") as string;
-      if (["in_progress", "unclaimed", "bootstrap_pending", "bootstrap_running"].includes(nodeType)) {
+      if (nodeType === "group") {
+        selectGroup(id);
+      } else if (["in_progress", "unclaimed", "bootstrap_pending", "bootstrap_running"].includes(nodeType)) {
         selectIntent(node.data("intentId") as string);
       } else if (shiftKey) {
         toggleFact(id);
@@ -285,8 +288,9 @@ export function ProjectPage() {
       if (sideTab !== "log") setSideTab("detail");
       else scrollToSelection();
     },
-    onEdgeTap: (intentId: string) => {
-      selectIntent(intentId);
+    onEdgeTap: (intentId: string | undefined, groupId: string | undefined) => {
+      if (intentId) selectIntent(intentId);
+      else if (groupId) selectGroup(groupNodeId(groupId));
       if (sideTab === "log") scrollToSelection();
       else setSideTab("detail");
     },
@@ -303,6 +307,15 @@ export function ProjectPage() {
     return project.intents.find((intent) => intent.id === selectedNode.id) ?? null;
   }, [project, selectedNode]);
 
+  const groups = useMemo(
+    () => (projectRef.current ? collectIntentGroups(projectRef.current) : new Map()),
+    [timelineKey],
+  );
+  const selectedGroup = useMemo(
+    () => [...groups.values()].find((group) => group.nodeId === selectedNode?.id) ?? null,
+    [groups, selectedNode],
+  );
+
   const openIntent = selectedIntentRecord && !selectedIntentRecord.to && isRunnable ? selectedIntentRecord : null;
   const actionableIntent =
     openIntent && (!openIntent.worker || openIntent.worker === actorName) ? openIntent : null;
@@ -315,6 +328,12 @@ export function ProjectPage() {
     setSelectedNode(null);
     setSelectedFacts([]);
     setSelectedTimelineEntryId(null);
+  }
+
+  function selectGroup(nodeId: string) {
+    setSelectedFacts([]);
+    setSelectedTimelineEntryId(null);
+    setSelectedNode({ type: "group", id: nodeId });
   }
 
   function selectIntent(intentId: string) {
@@ -1146,6 +1165,46 @@ export function ProjectPage() {
           <div className="flex-1 overflow-y-auto p-3">
             {sideTab === "detail" && (
               <div className="space-y-3">
+                {selectedNode?.type === "group" && selectedGroup && (
+                  <article className="rounded-xl border border-amber-200 bg-amber-50/40 p-3">
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 font-mono text-[10px] text-amber-700">
+                        {t("project.group.title")}
+                      </span>
+                      <Badge variant="secondary">
+                        {t("project.group.count", { count: selectedGroup.intents.length })}
+                      </Badge>
+                    </div>
+                    <p className="truncate font-mono text-xs text-muted-foreground">{selectedGroup.worker}</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">{t("project.group.hint")}</p>
+                    <ul className="mt-2 space-y-1">
+                      {[...selectedGroup.intents]
+                        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+                        .map((member) => (
+                          <li key={member.id}>
+                            <button
+                              type="button"
+                              onClick={() => selectIntent(member.id)}
+                              className="w-full rounded-lg border bg-background px-2 py-1.5 text-left hover:bg-muted/50"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-[10px]">{member.id}</span>
+                                <Badge variant="secondary">
+                                  {member.to
+                                    ? t("project.group.concluded")
+                                    : member.worker
+                                      ? t("project.group.running")
+                                      : t("project.group.unclaimed")}
+                                </Badge>
+                              </div>
+                              <p className="mt-0.5 line-clamp-2 text-xs break-words">{member.description}</p>
+                              <p className="text-[10px] text-muted-foreground">{format.time(member.created_at)}</p>
+                            </button>
+                          </li>
+                        ))}
+                    </ul>
+                  </article>
+                )}
                 {!selectedNode && (
                   <div className="rounded-xl border border-dashed px-4 py-10 text-center">
                     <p className="text-sm text-muted-foreground">{t("project.empty.selection")}</p>

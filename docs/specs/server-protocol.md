@@ -111,6 +111,7 @@ title           # 项目名称
 status          # "active" | "stopped" | "blocked" | "completed"
 bootstrap_enabled  # 是否允许消费者在初始态运行 bootstrap，默认 true
 max_steps       # 可选的 Intent 步数预算，null 表示不限制
+schedule_id     # 由定时任务启动时的任务 id，手动创建与 fork 为 null
 created_at
 reason          # 当前项目级 reason lease，null 表示当前无人执行 reason
 ```

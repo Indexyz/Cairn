@@ -8,6 +8,7 @@ import {
   buildElements,
   graphStyles,
   highlightFact,
+  highlightGroup,
   highlightIntent,
   highlightMultiFact,
   layoutDirection,
@@ -30,7 +31,7 @@ interface Options {
   selectedNode: Selection | null;
   selectedFacts: string[];
   onNodeTap: (node: NodeSingular, shiftKey: boolean) => void;
-  onEdgeTap: (intentId: string) => void;
+  onEdgeTap: (intentId: string | undefined, groupId: string | undefined) => void;
   onBackgroundTap: () => void;
 }
 
@@ -67,7 +68,7 @@ export function useCytoscape(options: Options) {
       handlers.current.onNodeTap(event.target as NodeSingular, event.originalEvent.shiftKey);
     });
     instance.on("tap", "edge", (event) => {
-      handlers.current.onEdgeTap(event.target.data("intentId"));
+      handlers.current.onEdgeTap(event.target.data("intentId"), event.target.data("groupId"));
     });
     instance.on("tap", (event) => {
       if (event.target === instance) handlers.current.onBackgroundTap();
@@ -263,6 +264,10 @@ export function useCytoscape(options: Options) {
     if (!selectedNode) {
       cy.elements().removeClass("highlight focus faded");
       syncFactSelections(cy, selectedFacts);
+      return;
+    }
+    if (selectedNode.type === "group") {
+      highlightGroup(cy, selectedNode.id, selectedFacts);
       return;
     }
     if (selectedNode.type === "intent") {

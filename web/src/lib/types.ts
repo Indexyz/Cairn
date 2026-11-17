@@ -51,6 +51,7 @@ export interface ProjectMeta {
   status: ProjectStatus;
   bootstrap_enabled: boolean;
   max_steps: number | null;
+  schedule_id: string | null;
   created_at: string;
   reason: ProjectReason | null;
 }
@@ -172,6 +173,6 @@ export interface TimelineEvent {
 }
 
 export interface Selection {
-  type: "fact" | "intent";
+  type: "fact" | "intent" | "group";
   id: string;
 }

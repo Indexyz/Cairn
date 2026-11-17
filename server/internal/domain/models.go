@@ -95,6 +95,7 @@ type ProjectMeta struct {
 	Status           string         `json:"status"`
 	BootstrapEnabled bool           `json:"bootstrap_enabled"`
 	MaxSteps         *int           `json:"max_steps"`
+	ScheduleID       *string        `json:"schedule_id"`
 	CreatedAt        string         `json:"created_at"`
 	Reason           *ProjectReason `json:"reason"`
 }

@@ -67,7 +67,9 @@ export function factNodeSize(label: string, nodeType: string) {
   const preset =
     nodeType === "fact"
       ? { fontSize: 10, maxTextWidth: 116, minWidth: 52, minHeight: 34, paddingX: 10, paddingY: 10 }
-      : { fontSize: 11, maxTextWidth: 92, minWidth: 58, minHeight: 38, paddingX: 10, paddingY: 10 };
+      : nodeType === "group"
+        ? { fontSize: 11, maxTextWidth: 130, minWidth: 76, minHeight: 38, paddingX: 10, paddingY: 10 }
+        : { fontSize: 11, maxTextWidth: 92, minWidth: 58, minHeight: 38, paddingX: 10, paddingY: 10 };
 
   const measured = measureWrappedText(label, preset.maxTextWidth, preset.fontSize);
   const size = {
@@ -90,9 +92,52 @@ export function openIntentNodeSize(intent: Intent) {
   return { width: 22, height: 22 };
 }
 
+export interface IntentGroup {
+  key: string;
+  nodeId: string;
+  worker: string;
+  intents: Intent[];
+}
+
+const GROUP_NODE_PREFIX = "_grp_";
+
+/** Machine-created intents (the cron jobs) are collapsed per worker; humans stay individual. */
+export function collectIntentGroups(project: ProjectDetail): Map<string, IntentGroup> {
+  const byWorker = new Map<string, Intent[]>();
+  for (const intent of project.intents) {
+    if (!intent.creator.includes("@")) continue;
+    const bucket = byWorker.get(intent.creator);
+    if (bucket) bucket.push(intent);
+    else byWorker.set(intent.creator, [intent]);
+  }
+
+  const groups = new Map<string, IntentGroup>();
+  for (const [worker, intents] of byWorker) {
+    if (intents.length < 2) continue;
+    const key = worker.replace(/[^a-zA-Z0-9._@-]+/g, "-");
+    groups.set(worker, {
+      key,
+      nodeId: `${GROUP_NODE_PREFIX}${key}`,
+      worker,
+      intents,
+    });
+  }
+  return groups;
+}
+
+export function groupNodeId(worker: string): string {
+  return `${GROUP_NODE_PREFIX}${worker.replace(/[^a-zA-Z0-9._@-]+/g, "-")}`;
+}
+
+export function isGroupNodeId(id: string | null | undefined): boolean {
+  return Boolean(id?.startsWith(GROUP_NODE_PREFIX));
+}
+
 export function buildElements(project: ProjectDetail): ElementDefinition[] {
   const nodes: ElementDefinition[] = [];
   const edges: ElementDefinition[] = [];
+  const groups = collectIntentGroups(project);
+  const groupedWorkers = new Set(groups.keys());
 
   for (const fact of project.facts) {
     const nodeType = fact.id === "origin" ? "origin" : fact.id === "goal" ? "goal" : "fact";
@@ -110,7 +155,37 @@ export function buildElements(project: ProjectDetail): ElementDefinition[] {
     });
   }
 
+  for (const group of groups.values()) {
+    const size = factNodeSize(`${group.worker} (${group.intents.length})`, "group");
+    nodes.push({
+      data: {
+        id: group.nodeId,
+        label: `${group.worker} · ${group.intents.length}`,
+        description: group.worker,
+        nodeType: "group",
+        groupId: group.key,
+        count: group.intents.length,
+        width: size.width,
+        height: size.height,
+      },
+    });
+    const sources = new Set(group.intents.flatMap((intent) => intent.from));
+    for (const source of sources) {
+      edges.push({
+        data: {
+          id: `${group.nodeId}_${source}`,
+          source,
+          target: group.nodeId,
+          groupId: group.key,
+          label: "",
+          status: "group",
+        },
+      });
+    }
+  }
+
   for (const intent of project.intents) {
+    if (groupedWorkers.has(intent.creator)) continue;
     if (intent.to) {
       for (const source of intent.from) {
         edges.push({
@@ -189,6 +264,14 @@ export function graphStyles(): StylesheetStyle[] {
     {
       selector: 'node[nodeType="fact"]',
       style: { ...common, shape: "round-rectangle", "background-color": "#4f46e5", label: "data(label)", color: "#fff", "font-size": "10px", "font-weight": "bold", "text-wrap": "wrap", "text-max-width": "116px", "text-overflow-wrap": "anywhere", width: "data(width)", height: "data(height)", "border-width": 0 },
+    },
+    {
+      selector: 'node[nodeType="group"]',
+      style: { ...common, shape: "round-rectangle", "background-color": "#fffbeb", "background-opacity": 0.96, label: "data(label)", color: "#b45309", "font-size": "10px", "font-weight": "bold", width: "data(width)", height: "data(height)", "border-width": 1.5, "border-color": "#f59e0b", "border-style": "dashed", "text-wrap": "wrap", "text-max-width": "120px" },
+    },
+    {
+      selector: 'edge[status="group"]',
+      style: { width: 1.5, "line-color": "#fcd34d", "line-style": "dashed", "line-dash-pattern": [6, 4], "target-arrow-color": "#fcd34d", "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(label)", "font-size": "7px", color: "#b45309", "text-rotation": "autorotate", "text-margin-y": -9, "text-background-color": "#fffbeb", "text-background-opacity": 0.9, "text-background-padding": "2px", "arrow-scale": 0.7 },
     },
     {
       selector: 'node[nodeType="in_progress"]',
@@ -387,6 +470,18 @@ export function highlightFact(cy: Core, project: ProjectDetail, factId: string, 
   focusNode.addClass("focus");
 
   const visible = nodes.add(edges).add(focusNode);
+  cy.elements().not(visible).addClass("faded");
+  syncFactSelections(cy, selectedFacts);
+}
+
+export function highlightGroup(cy: Core, groupId: string, selectedFacts: string[]) {
+  cy.elements().removeClass("highlight focus faded");
+  const node = cy.getElementById(groupId);
+  if (node.length === 0) return;
+  const edges = node.connectedEdges();
+  node.addClass("highlight focus");
+  edges.addClass("highlight");
+  const visible = node.add(edges).add(edges.sources());
   cy.elements().not(visible).addClass("faded");
   syncFactSelections(cy, selectedFacts);
 }

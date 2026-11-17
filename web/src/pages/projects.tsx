@@ -1,14 +1,27 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Download, FileCode2, GitFork, Pencil, Plus, RotateCcw, Search, Square, Trash2 } from "lucide-react";
+import {
+  CalendarClock,
+  ChevronDown,
+  ChevronRight,
+  Download,
+  FileCode2,
+  GitFork,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Search,
+  Square,
+  Trash2,
+} from "lucide-react";
 
 import { useFormat } from "@/lib/format";
 import { usePrefs } from "@/hooks/use-prefs";
 import { useToast } from "@/hooks/use-toast";
 import { api, copyText, fetchText } from "@/lib/api";
 import { downloadText, snapshotFilename } from "@/lib/download";
-import type { ProjectDetail, ProjectStatus, ProjectSummary } from "@/lib/types";
+import type { ProjectDetail, ProjectStatus, ProjectSummary, Schedule } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,6 +67,8 @@ export function ProjectsPage() {
   const format = useFormat();
   const { actorName } = usePrefs();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [schedules, setSchedules] = useState<Record<string, string>>({});
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | ProjectStatus>("all");
   const [stopping, setStopping] = useState(false);
@@ -83,6 +98,12 @@ export function ProjectsPage() {
       setProjects(await api<ProjectSummary[]>("GET", "/projects"));
     } catch (error) {
       toast.show((error as Error).message, "error");
+    }
+    try {
+      const list = await api<Schedule[]>("GET", "/schedules");
+      setSchedules(Object.fromEntries(list.map((schedule) => [schedule.id, schedule.name])));
+    } catch {
+      /* schedules are optional decoration for grouping */
     }
   }
 
@@ -114,6 +135,40 @@ export function ProjectsPage() {
     }),
     [projects],
   );
+
+  type Row =
+    | { kind: "project"; project: ProjectSummary }
+    | { kind: "group"; scheduleId: string; name: string; projects: ProjectSummary[] };
+
+  // Projects started by a schedule collapse under that schedule, so a cron job cannot
+  // flood the list; everything else stays a flat row.
+  const rows = useMemo<Row[]>(() => {
+    const buckets = new Map<string, ProjectSummary[]>();
+    const flat: Row[] = [];
+    for (const project of filtered) {
+      const scheduleId = project.schedule_id;
+      if (scheduleId && schedules[scheduleId]) {
+        const bucket = buckets.get(scheduleId);
+        if (bucket) bucket.push(project);
+        else buckets.set(scheduleId, [project]);
+      } else {
+        flat.push({ kind: "project", project });
+      }
+    }
+    for (const [scheduleId, members] of buckets) {
+      flat.push({ kind: "group", scheduleId, name: schedules[scheduleId], projects: members });
+    }
+    return flat;
+  }, [filtered, schedules]);
+
+  function toggleGroup(scheduleId: string) {
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(scheduleId)) next.delete(scheduleId);
+      else next.add(scheduleId);
+      return next;
+    });
+  }
 
   async function createProject() {
     try {
@@ -237,6 +292,102 @@ export function ProjectsPage() {
     }
   }
 
+  function renderProjectRow(project: ProjectSummary, inGroup: boolean) {
+    return (
+      <TableRow key={project.id}>
+        <TableCell className={cn("font-mono text-xs text-muted-foreground", inGroup && "pl-9")}>
+          {project.id}
+        </TableCell>
+        <TableCell className="max-w-72">
+          <Link
+            to={`/projects/${project.id}`}
+            className="block truncate font-medium hover:underline"
+            title={project.title}
+          >
+            {project.title}
+          </Link>
+          {project.reason && (
+            <p className="truncate text-[11px] text-sky-600">
+              {t("projects.reasonRunning", {
+                worker: project.reason.worker,
+                time: format.time(project.reason.last_heartbeat_at),
+              })}
+            </p>
+          )}
+        </TableCell>
+        <TableCell>
+          <Badge variant={STATUS_BADGE[project.status]}>{t(`common.status.${project.status}`)}</Badge>
+        </TableCell>
+        <TableCell className="text-right tabular-nums">{project.fact_count}</TableCell>
+        <TableCell className="text-right tabular-nums">
+          {project.intent_count}
+          {project.max_steps !== null && <span className="text-muted-foreground"> / {project.max_steps}</span>}
+          {project.working_intent_count > 0 && (
+            <span className="ml-1 text-amber-600">+{project.working_intent_count}</span>
+          )}
+        </TableCell>
+        <TableCell className="text-right tabular-nums">{project.hint_count}</TableCell>
+        <TableCell className="text-xs text-muted-foreground">{format.date(project.created_at)}</TableCell>
+        <TableCell>
+          <div className="flex items-center justify-end gap-1">
+            <Button variant="outline" size="sm" onClick={() => void openSnapshot(project)}>
+              <FileCode2 className="size-3.5" />
+              {t("projects.snapshot")}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title={t("common.edit")}
+              onClick={() => setRename({ id: project.id, title: project.title })}
+            >
+              <Pencil className="size-3.5" />
+            </Button>
+            {project.status === "active" && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title={t("project.stop")}
+                onClick={() => void setProjectStatus(project.id, "stopped")}
+              >
+                <Square className="size-3.5" />
+              </Button>
+            )}
+            {(project.status === "stopped" || project.status === "blocked") && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title={t("project.resume")}
+                onClick={() => void setProjectStatus(project.id, "active")}
+              >
+                <RotateCcw className="size-3.5" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title={t("projects.fork.action")}
+              onClick={() => {
+                setForkTitle(`${project.title} (fork)`);
+                setForking({ id: project.id, title: project.title });
+              }}
+            >
+              <GitFork className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-destructive hover:text-destructive"
+              title={t("common.delete")}
+              onClick={() => setRemoval({ id: project.id, title: project.title })}
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-5">
@@ -312,112 +463,56 @@ export function ProjectsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 && (
+                {rows.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={8} className="py-16 text-center text-muted-foreground">
                       {t("projects.empty")}
                     </TableCell>
                   </TableRow>
                 )}
-                {filtered.map((project) => (
-                  <TableRow key={project.id}>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {project.id}
-                    </TableCell>
-                    <TableCell className="max-w-72">
-                      <Link
-                        to={`/projects/${project.id}`}
-                        className="block truncate font-medium hover:underline"
-                        title={project.title}
-                      >
-                        {project.title}
-                      </Link>
-                      {project.reason && (
-                        <p className="truncate text-[11px] text-sky-600">
-                          {t("projects.reasonRunning", {
-                            worker: project.reason.worker,
-                            time: format.time(project.reason.last_heartbeat_at),
-                          })}
-                        </p>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={STATUS_BADGE[project.status]}>
-                        {t(`common.status.${project.status}`)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{project.fact_count}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {project.intent_count}
-                      {project.max_steps !== null && (
-                        <span className="text-muted-foreground"> / {project.max_steps}</span>
-                      )}
-                      {project.working_intent_count > 0 && (
-                        <span className="ml-1 text-amber-600">+{project.working_intent_count}</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{project.hint_count}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {format.date(project.created_at)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="outline" size="sm" onClick={() => void openSnapshot(project)}>
-                          <FileCode2 className="size-3.5" />
-                          {t("projects.snapshot")}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          title={t("common.edit")}
-                          onClick={() => setRename({ id: project.id, title: project.title })}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        {project.status === "active" && (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            title={t("project.stop")}
-                            onClick={() => void setProjectStatus(project.id, "stopped")}
-                          >
-                            <Square className="size-3.5" />
-                          </Button>
-                        )}
-                        {(project.status === "stopped" || project.status === "blocked") && (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            title={t("project.resume")}
-                            onClick={() => void setProjectStatus(project.id, "active")}
-                          >
-                            <RotateCcw className="size-3.5" />
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          title={t("projects.fork.action")}
-                          onClick={() => {
-                            setForkTitle(`${project.title} (fork)`);
-                            setForking({ id: project.id, title: project.title });
-                          }}
-                        >
-                          <GitFork className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-destructive hover:text-destructive"
-                          title={t("common.delete")}
-                          onClick={() => setRemoval({ id: project.id, title: project.title })}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {rows.map((row) =>
+                  row.kind === "project" ? (
+                    renderProjectRow(row.project, false)
+                  ) : (
+                    <Fragment key={row.scheduleId}>
+                      <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableCell colSpan={8}>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => toggleGroup(row.scheduleId)}
+                              title={
+                                expandedGroups.has(row.scheduleId)
+                                  ? t("projects.group.collapse")
+                                  : t("projects.group.expand")
+                              }
+                            >
+                              {expandedGroups.has(row.scheduleId) ? (
+                                <ChevronDown className="size-3.5" />
+                              ) : (
+                                <ChevronRight className="size-3.5" />
+                              )}
+                            </Button>
+                            <CalendarClock className="size-3.5 text-muted-foreground" />
+                            <span className="text-xs font-medium">{row.name}</span>
+                            <Badge variant="secondary">
+                              {t("projects.group.runs", { count: row.projects.length })}
+                            </Badge>
+                            <Link
+                              to="/schedules"
+                              className="ml-auto text-[11px] text-muted-foreground hover:underline"
+                            >
+                              {t("projects.group.openSchedule")}
+                            </Link>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {expandedGroups.has(row.scheduleId) &&
+                        row.projects.map((project) => renderProjectRow(project, true))}
+                    </Fragment>
+                  ),
+                )}
               </TableBody>
             </Table>
             <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground">

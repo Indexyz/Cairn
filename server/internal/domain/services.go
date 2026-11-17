@@ -165,6 +165,7 @@ type ProjectRow struct {
 	Status              string
 	BootstrapEnabled    bool
 	MaxSteps            *int
+	ScheduleID          *string
 	CreatedAt           string
 	ReasonWorker        *string
 	ReasonTrigger       *string
@@ -172,18 +173,23 @@ type ProjectRow struct {
 	ReasonLastHeartbeat *string
 }
 
-const projectColumns = "id, title, status, bootstrap_enabled, max_steps, created_at, reason_worker, reason_trigger, reason_started_at, reason_last_heartbeat_at"
+const projectColumns = "id, title, status, bootstrap_enabled, max_steps, schedule_id, created_at, reason_worker, reason_trigger, reason_started_at, reason_last_heartbeat_at"
 
 func scanProject(scanner interface{ Scan(...any) error }) (*ProjectRow, error) {
 	row := &ProjectRow{}
 	var bootstrap int
 	var maxSteps sql.NullInt64
+	var scheduleID sql.NullString
 	var reasonWorker, reasonTrigger, reasonStarted, reasonHeartbeat sql.NullString
 	if err := scanner.Scan(
-		&row.ID, &row.Title, &row.Status, &bootstrap, &maxSteps, &row.CreatedAt,
+		&row.ID, &row.Title, &row.Status, &bootstrap, &maxSteps, &scheduleID, &row.CreatedAt,
 		&reasonWorker, &reasonTrigger, &reasonStarted, &reasonHeartbeat,
 	); err != nil {
 		return nil, err
+	}
+	if scheduleID.Valid {
+		value := scheduleID.String
+		row.ScheduleID = &value
 	}
 	row.BootstrapEnabled = bootstrap != 0
 	if maxSteps.Valid {
@@ -489,7 +495,7 @@ func ProjectReasonFromRow(row *ProjectRow) *ProjectReason {
 func ProjectMetaFromRow(row *ProjectRow) ProjectMeta {
 	return ProjectMeta{
 		ID: row.ID, Title: row.Title, Status: row.Status, BootstrapEnabled: row.BootstrapEnabled,
-		MaxSteps: row.MaxSteps, CreatedAt: row.CreatedAt, Reason: ProjectReasonFromRow(row),
+		MaxSteps: row.MaxSteps, ScheduleID: row.ScheduleID, CreatedAt: row.CreatedAt, Reason: ProjectReasonFromRow(row),
 	}
 }
 

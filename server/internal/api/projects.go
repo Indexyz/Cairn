@@ -20,7 +20,7 @@ func (app *App) listProjects(w http.ResponseWriter, r *http.Request) error {
 			return 0, nil, err
 		}
 		rows, err := conn.QueryContext(ctx, `
-			SELECT p.id, p.title, p.status, p.bootstrap_enabled, p.max_steps, p.created_at,
+			SELECT p.id, p.title, p.status, p.bootstrap_enabled, p.max_steps, p.schedule_id, p.created_at,
 			       p.reason_worker, p.reason_trigger, p.reason_started_at, p.reason_last_heartbeat_at,
 			       (SELECT COUNT(*) FROM facts WHERE project_id = p.id),
 			       (SELECT COUNT(*) FROM intents WHERE project_id = p.id),
@@ -37,10 +37,11 @@ func (app *App) listProjects(w http.ResponseWriter, r *http.Request) error {
 			row := &domain.ProjectRow{}
 			var bootstrap int
 			var maxSteps sql.NullInt64
+			var scheduleID sql.NullString
 			var reasonWorker, reasonTrigger, reasonStarted, reasonHeartbeat sql.NullString
 			summary := domain.ProjectSummary{}
 			if err := rows.Scan(
-				&row.ID, &row.Title, &row.Status, &bootstrap, &maxSteps, &row.CreatedAt,
+				&row.ID, &row.Title, &row.Status, &bootstrap, &maxSteps, &scheduleID, &row.CreatedAt,
 				&reasonWorker, &reasonTrigger, &reasonStarted, &reasonHeartbeat,
 				&summary.FactCount, &summary.IntentCount, &summary.WorkingIntentCount,
 				&summary.UnclaimedIntentCount, &summary.HintCount,
@@ -51,6 +52,10 @@ func (app *App) listProjects(w http.ResponseWriter, r *http.Request) error {
 			if maxSteps.Valid {
 				value := int(maxSteps.Int64)
 				row.MaxSteps = &value
+			}
+			if scheduleID.Valid {
+				value := scheduleID.String
+				row.ScheduleID = &value
 			}
 			if reasonWorker.Valid {
 				value := reasonWorker.String

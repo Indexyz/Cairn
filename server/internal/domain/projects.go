@@ -47,7 +47,7 @@ func CreateProjectFor(ctx context.Context, conn *sql.Conn, body *CreateProjectRe
 	return &ProjectDetail{
 		Project: ProjectMeta{
 			ID: projectID, Title: body.Title, Status: "active", BootstrapEnabled: bootstrap,
-			MaxSteps: body.MaxSteps, CreatedAt: now,
+			MaxSteps: body.MaxSteps, ScheduleID: scheduleID, CreatedAt: now,
 		},
 		Facts:   facts,
 		Intents: []Intent{},

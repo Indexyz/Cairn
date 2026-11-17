@@ -65,6 +65,12 @@ const en = {
       confirm: "Fork",
     },
     perPage: "20 per page",
+    group: {
+      runs: "{{count}} runs",
+      expand: "Show runs",
+      collapse: "Hide runs",
+      openSchedule: "Open schedules",
+    },
     pagination: "1-{{shown}} / {{total}} total",
     new: {
       title: "New project",
@@ -178,6 +184,14 @@ const en = {
       to: "To",
       worker: "Worker",
       created: "Created",
+    },
+    group: {
+      title: "Cron job",
+      count: "{{count}} tasks",
+      hint: "Pick a task to open it",
+      concluded: "concluded",
+      running: "running",
+      unclaimed: "unclaimed",
     },
     timeline: {
       sequence: "Sequence",
