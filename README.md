@@ -112,7 +112,7 @@ Workers can also run directly on the dispatcher host instead of in per-project c
 
 Supported worker backends: **Claude Code**, **Codex**, and **Pi**.
 
-Agents can be given MCP servers through the `mcp.servers` block in `dispatch.yaml`: The list is written into the project workspace as `.mcp.json` (read by Pi), Claude additionally gets `--mcp-config`, Codex gets `-c mcp_servers.*` overrides, and a worker's own `env.MCP_CONFIG` wins over the shared list. The worker image ships Claude Code with the experimental Code Mode enabled (`CLAUDE_CODE_EXPERIMENTAL_CODE_MODE=1`), so a model can batch its tool calls into one JavaScript snippet.
+Agents can be given MCP servers through the `mcp.servers` block in `dispatch.yaml`: The list is written into the project workspace (`.mcp.json` for Claude, `.pi/mcp.json` for Pi), Claude additionally gets `--mcp-config`, Codex gets `-c mcp_servers.*` overrides, and a worker's own `env.MCP_CONFIG` wins over the shared list. The worker image ships Claude Code with the experimental Code Mode enabled (`CLAUDE_CODE_EXPERIMENTAL_CODE_MODE=1`), and Pi runs with its built-in codemode tools plus `--approve`, so a model can batch tool calls into one JavaScript snippet.
 
 ## Results
 

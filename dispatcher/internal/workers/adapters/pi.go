@@ -66,7 +66,7 @@ func (*Pi) DescribeHealth(worker *config.WorkerConfig) string {
 // BuildExecute builds the execute argv.
 func (driver *Pi) BuildExecute(worker *config.WorkerConfig, prompt string, session *string) workers.DriverResult {
 	if driver.local {
-		return workers.DriverResult{Argv: driver.localArgv(worker, prompt, session), Session: session}
+		return workers.DriverResult{Argv: codemodeTools(driver.localArgv(worker, prompt, session)), Session: session}
 	}
 	env := worker.Env
 	argv := []string{
@@ -79,13 +79,13 @@ func (driver *Pi) BuildExecute(worker *config.WorkerConfig, prompt string, sessi
 		argv = append(argv, "--session", *session)
 	}
 	argv = append(argv, "-p", prompt)
-	return workers.DriverResult{Argv: driver.wrapWithModels(worker, argv), Session: session}
+	return workers.DriverResult{Argv: driver.wrapWithModels(worker, codemodeTools(argv)), Session: session}
 }
 
 // BuildConclude resumes the session with the conclude prompt.
 func (driver *Pi) BuildConclude(worker *config.WorkerConfig, prompt, session string) []string {
 	if driver.local {
-		return driver.localArgv(worker, prompt, &session)
+		return codemodeTools(driver.localArgv(worker, prompt, &session))
 	}
 	env := worker.Env
 	argv := []string{
@@ -96,7 +96,13 @@ func (driver *Pi) BuildConclude(worker *config.WorkerConfig, prompt, session str
 		"--session", session,
 		"-p", prompt,
 	}
-	return driver.wrapWithModels(worker, argv)
+	return driver.wrapWithModels(worker, codemodeTools(argv))
+}
+
+// codemodeTools enables Pi's built-in codemode/tool search and trusts the
+// project files (AGENTS.md, .pi/mcp.json) for the non-interactive run.
+func codemodeTools(argv []string) []string {
+	return append(argv, "--tools", "+codemode,+tool_search", "--approve")
 }
 
 // ExtractSession reads the session id from the JSON event stream.

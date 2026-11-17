@@ -15,7 +15,8 @@ import (
 )
 
 // mcpConfigName is the project-scoped MCP file every agent CLI can read.
-const mcpConfigName = ".mcp.json"
+// both names: Claude/Pi convention (.mcp.json) and Pi's project config (.pi/mcp.json)
+var mcpConfigNames = []string{".mcp.json", ".pi/mcp.json"}
 
 const (
 	processCommunicateGrace = 15
@@ -213,8 +214,10 @@ func writeMCPConfig(manager Backend, projectID, containerName string, worker *co
 	if raw == "" {
 		return
 	}
-	target := path.Join(manager.WorkspacePath(projectID), mcpConfigName)
-	if err := manager.WriteTextFile(containerName, target, raw); err != nil {
-		log.Warnf("write mcp config failed project=%s worker=%s error=%s", projectID, worker.Name, err)
+	for _, name := range mcpConfigNames {
+		target := path.Join(manager.WorkspacePath(projectID), name)
+		if err := manager.WriteTextFile(containerName, target, raw); err != nil {
+			log.Warnf("write mcp config failed project=%s worker=%s path=%s error=%s", projectID, worker.Name, target, err)
+		}
 	}
 }

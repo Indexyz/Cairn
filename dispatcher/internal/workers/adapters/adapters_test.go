@@ -51,9 +51,8 @@ func TestPiDriverModelsJSONAndExecuteArgvIncludeContextWindowAndTools(t *testing
 	if !contains(argv, "--tools") {
 		t.Fatal("--tools missing")
 	}
-	tail := argv[len(argv)-2:]
-	if tail[0] != "-p" || tail[1] != "prompt" {
-		t.Fatalf("tail = %v", tail)
+	if prompt, ok := valueAfter(argv, "-p"); !ok || prompt != "prompt" {
+		t.Fatalf("argv = %v", argv)
 	}
 }
 
@@ -182,8 +181,8 @@ func TestPiLocalDriverOmitsModelsJSONAndProvider(t *testing.T) {
 			t.Fatalf("provider flags leaked: %v", argv)
 		}
 	}
-	if argv[len(argv)-2] != "-p" || argv[len(argv)-1] != "PROMPT" {
-		t.Fatalf("tail = %v", argv)
+	if prompt, ok := valueAfter(argv, "-p"); !ok || prompt != "PROMPT" {
+		t.Fatalf("argv = %v", argv)
 	}
 }
 
@@ -238,4 +237,29 @@ func containsPair(argv []string, flag, value string) bool {
 		}
 	}
 	return false
+}
+
+func TestPiEnablesCodemodeArgs(t *testing.T) {
+	value := worker(config.WorkerPi, map[string]string{
+		"PI_MODEL": "model", "PI_BASE_URL": "http://api", "PI_API_KEY": "k", "PI_PROVIDER_API": "openai-completions",
+	})
+	for _, argv := range [][]string{
+		NewPi(false).BuildExecute(value, "prompt", nil).Argv,
+		NewPi(false).BuildConclude(value, "prompt", "session"),
+		NewPi(true).BuildExecute(value, "prompt", nil).Argv,
+		NewPi(true).BuildConclude(value, "prompt", "session"),
+	} {
+		if !containsPair(argv, "--tools", "+codemode,+tool_search") || !contains(argv, "--approve") {
+			t.Fatalf("argv = %v", argv)
+		}
+	}
+}
+
+func valueAfter(argv []string, flag string) (string, bool) {
+	for index := 0; index+1 < len(argv); index++ {
+		if argv[index] == flag {
+			return argv[index+1], true
+		}
+	}
+	return "", false
 }

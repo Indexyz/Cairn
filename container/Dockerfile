@@ -77,7 +77,7 @@ RUN pip3 install tccli awscli --break-system-packages && \
 
 RUN sudo npm install -g @openai/codex@0.118.0
 RUN sudo npm install -g @anthropic-ai/claude-code@2.1.326
-RUN sudo npm install -g @mariozechner/pi-coding-agent@0.73.0
+RUN sudo npm install -g @earendil-works/pi-coding-agent@1.5.2
 
 COPY --from=kerbrute /kerbrute /usr/local/bin/kerbrute
 

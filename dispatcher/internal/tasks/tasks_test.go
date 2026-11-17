@@ -402,19 +402,23 @@ func TestExploreWritesProjectScopedMCPConfig(t *testing.T) {
 
 	RunExploreTask(dispatch, client, backend, project, "facts: []\n", &project.Intents[0], &dispatch.Workers[0], &runtime.TaskCancellation{})
 
-	found := false
+	wanted := map[string]bool{"/.mcp.json": false, "/.pi/mcp.json": false}
 	for _, write := range backend.writes {
-		if strings.HasSuffix(write[1], "/.mcp.json") {
-			found = true
-			if write[2] != payload {
-				t.Fatalf("mcp content = %q", write[2])
-			}
-			if !strings.HasPrefix(write[1], "/workspace/") {
-				t.Fatalf("mcp path = %q", write[1])
+		for suffix := range wanted {
+			if strings.HasSuffix(write[1], suffix) {
+				wanted[suffix] = true
+				if write[2] != payload {
+					t.Fatalf("mcp content = %q", write[2])
+				}
+				if !strings.HasPrefix(write[1], "/workspace/") {
+					t.Fatalf("mcp path = %q", write[1])
+				}
 			}
 		}
 	}
-	if !found {
-		t.Fatalf("no mcp config written: %v", backend.writes)
+	for suffix, seen := range wanted {
+		if !seen {
+			t.Fatalf("no %s written: %v", suffix, backend.writes)
+		}
 	}
 }
