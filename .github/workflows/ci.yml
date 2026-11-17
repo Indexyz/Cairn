@@ -28,6 +28,20 @@ jobs:
             server/go.sum
             dispatcher/go.sum
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # The server embeds the SPA, so handler tests need a built static tree.
+      - name: Build the web UI
+        working-directory: web
+        run: |
+          npm ci --no-fund --no-audit
+          npm run build
+
       - name: Check formatting
         run: test -z "$(gofmt -l ./server ./dispatcher)"
 

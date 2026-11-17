@@ -392,6 +392,11 @@ func TestOpenAPIAndDocsAreServed(t *testing.T) {
 	if status, _ := harness.request(t, http.MethodGet, "/api/nope", nil); status != http.StatusNotFound {
 		t.Fatalf("unknown API path status = %d", status)
 	}
+	// The SPA is a build artifact: without it there is no index to fall back to.
+	if _, err := staticFS.ReadFile("static/index.html"); err != nil {
+		t.Log("static/index.html is not built, skipping the history fallback assertion")
+		return
+	}
 	status, page := harness.raw(t, http.MethodGet, "/projects/proj_001", nil)
 	if status != http.StatusOK || !containsString(string(page), "<!doctype html>") {
 		t.Fatalf("history fallback status=%d body=%s", status, page)
