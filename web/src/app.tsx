@@ -7,6 +7,7 @@ import { ModelsPage } from "@/pages/models";
 import { NotificationsPage } from "@/pages/notifications";
 import { ProjectPage } from "@/pages/project";
 import { ProjectsPage } from "@/pages/projects";
+import { SchedulesPage } from "@/pages/schedules";
 import { SettingsPage } from "@/pages/settings";
 
 export function App() {
@@ -19,6 +20,7 @@ export function App() {
               <Route index element={<ProjectsPage />} />
               <Route path="models" element={<ModelsPage />} />
               <Route path="notifications" element={<NotificationsPage />} />
+              <Route path="schedules" element={<SchedulesPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="projects/:projectId" element={<ProjectPage />} />
             </Route>

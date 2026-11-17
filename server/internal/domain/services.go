@@ -113,6 +113,11 @@ func NextChannelID(ctx context.Context, conn *sql.Conn) (string, error) {
 	return nextCounter(ctx, conn, "notification_channel", "chan_")
 }
 
+// NextScheduleID reserves a schedule id.
+func NextScheduleID(ctx context.Context, conn *sql.Conn) (string, error) {
+	return nextCounter(ctx, conn, "schedule", "sched_")
+}
+
 func nextCounter(ctx context.Context, conn *sql.Conn, name, prefix string) (string, error) {
 	if _, err := conn.ExecContext(ctx, "UPDATE counters SET value = value + 1 WHERE name = ?", name); err != nil {
 		return "", err

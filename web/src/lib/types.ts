@@ -113,6 +113,39 @@ export interface NotificationTestResult {
   duration_ms: number;
 }
 
+export type ScheduleStatus = "created" | "skipped" | "error";
+
+export interface SchedulePayload {
+  name: string;
+  cron: string;
+  timezone: string;
+  enabled: boolean;
+  title: string;
+  origin: string;
+  goal: string;
+  bootstrap_enabled: boolean;
+  max_steps: number | null;
+  hints: string[];
+}
+
+export interface Schedule extends SchedulePayload {
+  id: string;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  last_status: ScheduleStatus | null;
+  last_detail: string | null;
+  last_project_id: string | null;
+  skip_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScheduleRunResult {
+  project_id: string;
+  skipped: boolean;
+  detail: string;
+}
+
 export type TimelineEventType =
   | "project_created"
   | "hint_added"

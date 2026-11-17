@@ -380,6 +380,11 @@ func (request *CreateProjectRequest) Validate() *ValidationError {
 	return nil
 }
 
+// BootstrapValue defaults a missing bootstrap flag to true.
+func (request *CreateProjectRequest) BootstrapValue() bool {
+	return request.BootstrapEnabled == nil || *request.BootstrapEnabled
+}
+
 // ForkProjectRequest optionally renames the fork.
 type ForkProjectRequest struct {
 	Title *string `json:"title"`

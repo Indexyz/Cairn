@@ -84,50 +84,12 @@ func (app *App) createProject(w http.ResponseWriter, r *http.Request) error {
 		return validation
 	}
 	return app.tx(w, r, func(ctx context.Context, conn *sql.Conn) (int, any, error) {
-		projectID, err := domain.NextProjectID(ctx, conn)
+		detail, err := domain.CreateProject(ctx, conn, &body)
 		if err != nil {
 			return 0, nil, err
 		}
-		now := domain.UtcNow()
-		bootstrap := true
-		if body.BootstrapEnabled != nil {
-			bootstrap = *body.BootstrapEnabled
-		}
-		if _, err := conn.ExecContext(ctx,
-			"INSERT INTO projects (id, title, status, bootstrap_enabled, max_steps, created_at) VALUES (?, ?, 'active', ?, ?, ?)",
-			projectID, body.Title, boolInt(bootstrap), body.MaxSteps, now); err != nil {
-			return 0, nil, err
-		}
-		for _, fact := range []domain.Fact{{ID: "origin", Description: body.Origin}, {ID: "goal", Description: body.Goal}} {
-			if _, err := conn.ExecContext(ctx, "INSERT INTO facts (id, project_id, description) VALUES (?, ?, ?)",
-				fact.ID, projectID, fact.Description); err != nil {
-				return 0, nil, err
-			}
-		}
-		hints := []domain.Hint{}
-		if body.Hints != nil {
-			for _, hint := range *body.Hints {
-				hintID, err := domain.NextHintID(ctx, conn, projectID)
-				if err != nil {
-					return 0, nil, err
-				}
-				if _, err := conn.ExecContext(ctx, "INSERT INTO hints (id, project_id, content, creator, created_at) VALUES (?, ?, ?, ?, ?)",
-					hintID, projectID, hint.Content, hint.Creator, now); err != nil {
-					return 0, nil, err
-				}
-				hints = append(hints, domain.Hint{ID: hintID, Content: hint.Content, Creator: hint.Creator, CreatedAt: now})
-			}
-		}
-		app.pendingNotify(ctx, conn, "project_created", projectID, body.Title, "")
-		return http.StatusCreated, domain.ProjectDetail{
-			Project: domain.ProjectMeta{
-				ID: projectID, Title: body.Title, Status: "active", BootstrapEnabled: bootstrap,
-				MaxSteps: body.MaxSteps, CreatedAt: now,
-			},
-			Facts:   []domain.Fact{{ID: "origin", Description: body.Origin}, {ID: "goal", Description: body.Goal}},
-			Intents: []domain.Intent{},
-			Hints:   hints,
-		}, nil
+		app.NotifyProjectCreated(ctx, conn, detail.Project.ID, body.Title)
+		return http.StatusCreated, detail, nil
 	})
 }
 

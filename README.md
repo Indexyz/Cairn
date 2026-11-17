@@ -216,6 +216,19 @@ API probe keys are stored as plain text in the database.
 
 The **Notifications** page holds push channels for project state changes. A channel targets Discord (webhook URL), Telegram (bot token + chat ID) or a generic webhook, subscribes to individual events — project created, paused, resumed, completed, reopened — and can be enabled, edited, tested or deleted at any time; edits apply to the next event without a restart. Messages are sent from the server host right after the state change, so the server needs outbound access to the target. Delivery failures are logged and never roll back the write that triggered them. Credentials are stored as plain text in the database.
 
+### Schedules
+
+The **Schedules** page starts projects for you on a cron cadence — a recurring scan, a nightly re-test, a periodic re-check of a target list. A schedule holds two things: the trigger and the project template.
+
+- the trigger is a standard five-field cron expression (minute hour day month weekday) plus an IANA timezone; `0 3 * * 1-5` with `Asia/Shanghai` means 03:00 on weekdays in that zone. Month and weekday names (`JAN`, `MON`) are accepted, and day-of-month and day-of-week are OR-ed when both are restricted, as in Vixie cron
+- the template is the same shape as the new-project dialog: title, origin fact, goal fact, bootstrap, optional max steps and hints
+
+Every firing creates a fresh project, so each run gets its own graph; schedules never reuse or fork a project. Each row shows the next firing, the last firing with its outcome and project link, and how often a firing was skipped. The **Run now** button creates a project immediately without moving the cron anchor.
+
+While the project a schedule created is still `active`, the next firing is **skipped** and counted instead of piling a second run on top; a `blocked`, `stopped`, `completed` or deleted project lets the following firing through again. Firing failures are recorded as `failed` with the error text and do not advance anything else. Disabling a schedule clears its next firing; saving one re-anchors it from now. Deleting a schedule leaves the projects it created running.
+
+The server fires schedules — no dispatcher involved — so run exactly one server per database and do not disable the ticker on it. `cairn serve --scheduler-interval 30s` sets the check interval (default `30s`); `--no-scheduler` keeps a second instance from firing the same schedules twice. The server embeds the timezone database, so IANA zone names work on hosts without tzdata.
+
 ### Several dispatchers
 
 More than one dispatcher can share one server. Each instance gets an identity — `CAIRN_INSTANCE_ID`, or a random suffix when unset — and writes leases as `model@instance`, so two instances never treat the same model as the same owner: the loser of a claim gets `409` and retries on a later tick.

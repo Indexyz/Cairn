@@ -60,6 +60,12 @@ func (app *App) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/notifications/{channel}", app.handle(app.deleteChannel))
 	mux.HandleFunc("POST /api/notifications/{channel}/test", app.handle(app.testChannel))
 
+	mux.HandleFunc("GET /api/schedules", app.handle(app.listSchedules))
+	mux.HandleFunc("POST /api/schedules", app.handle(app.createSchedule))
+	mux.HandleFunc("PUT /api/schedules/{schedule}", app.handle(app.updateSchedule))
+	mux.HandleFunc("DELETE /api/schedules/{schedule}", app.handle(app.deleteSchedule))
+	mux.HandleFunc("POST /api/schedules/{schedule}/run", app.handle(app.runSchedule))
+
 	mux.HandleFunc("GET /api/projects", app.handle(app.listProjects))
 	mux.HandleFunc("POST /api/projects", app.handle(app.createProject))
 	mux.HandleFunc("POST /api/projects/{project}/fork", app.handle(app.forkProject))
@@ -215,6 +221,11 @@ func (app *App) checkModel(ctx context.Context, model *domain.WorkerModel, timeo
 	}, nil
 }
 
+// NotifyProjectCreated pushes the project_created event from inside a write tx.
+func (app *App) NotifyProjectCreated(ctx context.Context, conn *sql.Conn, projectID, title string) {
+	app.pendingNotify(ctx, conn, "project_created", projectID, title, "")
+}
+
 // pendingNotify collects matching channels inside the transaction.
 func (app *App) pendingNotify(ctx context.Context, conn *sql.Conn, event, projectID, title, detail string) {
 	rows, err := conn.QueryContext(ctx,
@@ -245,6 +256,9 @@ func (app *App) pendingNotify(ctx context.Context, conn *sql.Conn, event, projec
 		return
 	}
 	text := notify.RenderMessage(event, projectID, title, detail)
+	if app.Deliverer == nil {
+		return
+	}
 	app.Deliverer.Notify(targets, event, projectID, title, text)
 }
 

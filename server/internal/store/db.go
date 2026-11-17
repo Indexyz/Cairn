@@ -93,6 +93,28 @@ var schema = []string{
 	)`,
 	`INSERT OR IGNORE INTO counters (name, value) VALUES ('project', 0)`,
 	`INSERT OR IGNORE INTO counters (name, value) VALUES ('notification_channel', 0)`,
+	`INSERT OR IGNORE INTO counters (name, value) VALUES ('schedule', 0)`,
+	`CREATE TABLE IF NOT EXISTS schedules (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		cron TEXT NOT NULL,
+		timezone TEXT NOT NULL DEFAULT 'UTC',
+		enabled INTEGER NOT NULL DEFAULT 1,
+		title TEXT NOT NULL,
+		origin TEXT NOT NULL,
+		goal TEXT NOT NULL,
+		bootstrap_enabled INTEGER NOT NULL DEFAULT 1,
+		max_steps INTEGER,
+		hints TEXT NOT NULL DEFAULT '[]',
+		next_run_at TEXT,
+		last_run_at TEXT,
+		last_status TEXT,
+		last_detail TEXT,
+		last_project_id TEXT,
+		skip_count INTEGER NOT NULL DEFAULT 0,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	)`,
 	`CREATE TABLE IF NOT EXISTS notification_channels (
 		id TEXT PRIMARY KEY,
 		name TEXT NOT NULL,
@@ -169,6 +191,11 @@ func (db *DB) migrate(ctx context.Context) error {
 		}
 		if !columns["max_steps"] {
 			if _, err := conn.ExecContext(ctx, "ALTER TABLE projects ADD COLUMN max_steps INTEGER"); err != nil {
+				return err
+			}
+		}
+		if !columns["schedule_id"] {
+			if _, err := conn.ExecContext(ctx, "ALTER TABLE projects ADD COLUMN schedule_id TEXT REFERENCES schedules(id) ON DELETE SET NULL"); err != nil {
 				return err
 			}
 		}
