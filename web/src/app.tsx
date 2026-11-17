@@ -1,4 +1,4 @@
-import { HashRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import { AppShell } from "@/components/app-shell";
 import { PrefsProvider } from "@/hooks/use-prefs";
@@ -13,7 +13,7 @@ export function App() {
   return (
     <ToastProvider>
       <PrefsProvider>
-        <HashRouter>
+        <BrowserRouter>
           <Routes>
             <Route element={<AppShell />}>
               <Route index element={<ProjectsPage />} />
@@ -23,7 +23,7 @@ export function App() {
               <Route path="projects/:projectId" element={<ProjectPage />} />
             </Route>
           </Routes>
-        </HashRouter>
+        </BrowserRouter>
       </PrefsProvider>
     </ToastProvider>
   );

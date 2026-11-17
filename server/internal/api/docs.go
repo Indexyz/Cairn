@@ -6,31 +6,31 @@ import (
 )
 
 var openAPIPaths = map[string][]string{
-	"/settings":                                      {"get", "put"},
-	"/models":                                        {"get", "post", "put"},
-	"/load":                                          {"get"},
-	"/models/{name}":                                 {"put", "delete"},
-	"/models/{name}/test":                            {"post"},
-	"/notifications":                                 {"get", "post"},
-	"/notifications/{channel}":                       {"put", "delete"},
-	"/notifications/{channel}/test":                  {"post"},
-	"/projects":                                      {"get", "post"},
-	"/projects/{project}":                            {"get", "delete"},
-	"/projects/{project}/fork":                       {"post"},
-	"/projects/{project}/title":                      {"put"},
-	"/projects/{project}/max_steps":                  {"put"},
-	"/projects/{project}/status":                     {"put"},
-	"/projects/{project}/reason/claim":               {"post"},
-	"/projects/{project}/reason/heartbeat":           {"post"},
-	"/projects/{project}/reason/release":             {"post"},
-	"/projects/{project}/complete":                   {"post"},
-	"/projects/{project}/reopen":                     {"post"},
-	"/projects/{project}/export":                     {"get"},
-	"/projects/{project}/hints":                      {"post"},
-	"/projects/{project}/intents":                    {"post"},
-	"/projects/{project}/intents/{intent}/heartbeat": {"post"},
-	"/projects/{project}/intents/{intent}/release":   {"post"},
-	"/projects/{project}/intents/{intent}/conclude":  {"post"},
+	"/api/settings":                                      {"get", "put"},
+	"/api/models":                                        {"get", "post", "put"},
+	"/api/load":                                          {"get"},
+	"/api/models/{name}":                                 {"put", "delete"},
+	"/api/models/{name}/test":                            {"post"},
+	"/api/notifications":                                 {"get", "post"},
+	"/api/notifications/{channel}":                       {"put", "delete"},
+	"/api/notifications/{channel}/test":                  {"post"},
+	"/api/projects":                                      {"get", "post"},
+	"/api/projects/{project}":                            {"get", "delete"},
+	"/api/projects/{project}/fork":                       {"post"},
+	"/api/projects/{project}/title":                      {"put"},
+	"/api/projects/{project}/max_steps":                  {"put"},
+	"/api/projects/{project}/status":                     {"put"},
+	"/api/projects/{project}/reason/claim":               {"post"},
+	"/api/projects/{project}/reason/heartbeat":           {"post"},
+	"/api/projects/{project}/reason/release":             {"post"},
+	"/api/projects/{project}/complete":                   {"post"},
+	"/api/projects/{project}/reopen":                     {"post"},
+	"/api/projects/{project}/export":                     {"get"},
+	"/api/projects/{project}/hints":                      {"post"},
+	"/api/projects/{project}/intents":                    {"post"},
+	"/api/projects/{project}/intents/{intent}/heartbeat": {"post"},
+	"/api/projects/{project}/intents/{intent}/release":   {"post"},
+	"/api/projects/{project}/intents/{intent}/conclude":  {"post"},
 }
 
 func (app *App) openAPISpec() map[string]any {
@@ -66,7 +66,7 @@ const docsPage = `<!doctype html>
 <div id="swagger-ui"></div>
 <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
 <script>
-  window.ui = SwaggerUIBundle({ url: "/openapi.json", dom_id: "#swagger-ui" });
+  window.ui = SwaggerUIBundle({ url: "/api/openapi.json", dom_id: "#swagger-ui" });
 </script>
 </body>
 </html>

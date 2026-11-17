@@ -129,15 +129,15 @@ Worker 不是协议参与者本身，而是 Dispatcher 管理下的执行单元�
 Dispatcher 会同时读取两类数据：
 
 - 结构化接口：用于调度、状态判断、intent 选择、协议写回
-- `GET /projects/{project_id}/export?format=yaml`：仅用于构造 prompt 所需的图快照
+- `GET /api/projects/{project_id}/export?format=yaml`：仅用于构造 prompt 所需的图快照
 
 1. Dispatcher 从 Server 读取项目图
 2. Dispatcher 依据调度规则选择任务类型和 Worker
 3. Dispatcher 渲染 prompt 与命令占位符
-4. 如果是 `explore`，Dispatcher 先通过 `POST /projects/{project_id}/intents/{intent_id}/heartbeat` 认领目标 intent；如果是 `reason`，则先通过 `POST /projects/{project_id}/reason/claim` 认领项目级 reason lease
+4. 如果是 `explore`，Dispatcher 先通过 `POST /api/projects/{project_id}/intents/{intent_id}/heartbeat` 认领目标 intent；如果是 `reason`，则先通过 `POST /api/projects/{project_id}/reason/claim` 认领项目级 reason lease
 5. Dispatcher 在项目容器内启动 Worker 进程
 6. Worker 输出结构化 JSON
-7. Dispatcher 解析结果，并调用 `POST /projects/{project_id}/complete`、`POST /projects/{project_id}/intents`、`POST /projects/{project_id}/intents/{intent_id}/conclude`、`POST /projects/{project_id}/intents/{intent_id}/release` 或 `POST /projects/{project_id}/reason/release`
+7. Dispatcher 解析结果，并调用 `POST /api/projects/{project_id}/complete`、`POST /api/projects/{project_id}/intents`、`POST /api/projects/{project_id}/intents/{intent_id}/conclude`、`POST /api/projects/{project_id}/intents/{intent_id}/release` 或 `POST /api/projects/{project_id}/reason/release`
 
 项目若被切到 `stopped`，这条主链路会在下一轮短路：Dispatcher 不再把该项目纳入 active 调度集合，会先取消本地仍在运行的任务，再转入容器 cleanup 流程并停止项目容器。对 `bootstrap` / `explore` 来说，被 `stopped` 取消后不会再进入 conclude fallback，因此不会再额外落 Fact。项目恢复为 `active` 后，Dispatcher 会重新读取图状态，再决定是继续 `explore`、进入 `reason`，还是在初始态依据 `project.bootstrap_enabled` 和 Worker 能力重新选择 `bootstrap` 或 `reason`。项目若在 `completed` 后被服务端 `reopen`，对 Dispatcher 来说也等价于“重新变成 active 且图上多了一个新 fact”；下一轮会按普通 active 项目继续调度。
 
@@ -149,8 +149,8 @@ Worker 选择规则：
 4. 在剩余 Worker 中，优先选择 `priority` 更小的
 5. 如果 `priority` 相同，则优先选择当前运行中任务数更少的
 6. 如果仍然相同，则随机选择
-7. 如果是 `explore`，Dispatcher 先通过 `POST /projects/{project_id}/intents/{intent_id}/heartbeat` claim 成功，再真正启动任务
-8. 如果是 `reason`，claim 成功后由 `POST /projects/{project_id}/reason/heartbeat` 维持 lease；当 `runtime.worker_healthcheck=startup_and_task` 时，真正启动前再对选中的 Worker 执行一次健康检查；如果失败，则本次任务作废；该 Worker 会进入一个短暂不可选窗口，等待后续轮次再尝试
+7. 如果是 `explore`，Dispatcher 先通过 `POST /api/projects/{project_id}/intents/{intent_id}/heartbeat` claim 成功，再真正启动任务
+8. 如果是 `reason`，claim 成功后由 `POST /api/projects/{project_id}/reason/heartbeat` 维持 lease；当 `runtime.worker_healthcheck=startup_and_task` 时，真正启动前再对选中的 Worker 执行一次健康检查；如果失败，则本次任务作废；该 Worker 会进入一个短暂不可选窗口，等待后续轮次再尝试
 
 ---
 
@@ -262,11 +262,11 @@ dispatcher/
 
 | 接口 | 用途 | 何时使用 |
 | --- | --- | --- |
-| `POST /projects/{project_id}/intents` | 创建保留 `bootstrap` intent | 初始态项目首次进入时，如尚不存在该 intent |
-| `POST /projects/{project_id}/intents/{intent_id}/heartbeat` | claim 并维持 `bootstrap` intent | 派发前先 claim；执行中按 `interval` 周期发送 |
-| `POST /projects/{project_id}/intents/{intent_id}/conclude` | 将 `bootstrap` 产出的关键结果写成 Fact | `bootstrap` 或 `bootstrap_conclude` 返回合法 `fact` 后调用 |
-| `POST /projects/{project_id}/complete` | 基于刚写入的 bootstrap fact 直接完成项目 | 仅当 `bootstrap` 主阶段成功返回 `fact + complete` 时调用 |
-| `POST /projects/{project_id}/intents/{intent_id}/release` | 放弃本次 bootstrap 尝试 | 两阶段都失败，或命令直接失败时调用 |
+| `POST /api/projects/{project_id}/intents` | 创建保留 `bootstrap` intent | 初始态项目首次进入时，如尚不存在该 intent |
+| `POST /api/projects/{project_id}/intents/{intent_id}/heartbeat` | claim 并维持 `bootstrap` intent | 派发前先 claim；执行中按 `interval` 周期发送 |
+| `POST /api/projects/{project_id}/intents/{intent_id}/conclude` | 将 `bootstrap` 产出的关键结果写成 Fact | `bootstrap` 或 `bootstrap_conclude` 返回合法 `fact` 后调用 |
+| `POST /api/projects/{project_id}/complete` | 基于刚写入的 bootstrap fact 直接完成项目 | 仅当 `bootstrap` 主阶段成功返回 `fact + complete` 时调用 |
+| `POST /api/projects/{project_id}/intents/{intent_id}/release` | 放弃本次 bootstrap 尝试 | 两阶段都失败，或命令直接失败时调用 |
 
 #### 超时与失败
 
@@ -355,19 +355,19 @@ dispatcher/
 
 #### 接口映射
 
-`reason` 启动前，Dispatcher 必须先 claim 项目级 reason lease，并在执行期间持续 heartbeat；这一状态会直接出现在 `GET /projects` 和 `GET /projects/{project_id}` 的 `project.reason` 字段中，供前端和其他消费者观察。
+`reason` 启动前，Dispatcher 必须先 claim 项目级 reason lease，并在执行期间持续 heartbeat；这一状态会直接出现在 `GET /api/projects` 和 `GET /api/projects/{project_id}` 的 `project.reason` 字段中，供前端和其他消费者观察。
 
 | `reason` 输出 | Dispatcher 动作 | 备注 |
 | --- | --- | --- |
-| `data.complete` 存在 | 调用 `POST /projects/{project_id}/complete` | `worker` 使用当前执行该任务的 `workers[].name` |
-| `data.complete` 不存在，且带 `intent` | 调用 `POST /projects/{project_id}/intents` | `creator` 使用当前 Worker 名；`worker` 固定写 `null` |
+| `data.complete` 存在 | 调用 `POST /api/projects/{project_id}/complete` | `worker` 使用当前执行该任务的 `workers[].name` |
+| `data.complete` 不存在，且带 `intent` | 调用 `POST /api/projects/{project_id}/intents` | `creator` 使用当前 Worker 名；`worker` 固定写 `null` |
 | `data` 为空对象 | 不写图 | 不写 Fact / Intent / Complete |
 
 写回失败的日志语义：
 
-- 如果 `POST /projects/{project_id}/complete` 或 `POST /projects/{project_id}/intents` 返回 `403`，通常表示项目已不再是 `active`，本次任务直接作废，记 `info`
+- 如果 `POST /api/projects/{project_id}/complete` 或 `POST /api/projects/{project_id}/intents` 返回 `403`，通常表示项目已不再是 `active`，本次任务直接作废，记 `info`
 - 其他写入失败也直接作废，不做立即重试，只记日志
-- 无论本轮是否写图，只要项目仍是 `active` 且 reason lease 仍在自己手里，Dispatcher 都会在收尾时调用 `POST /projects/{project_id}/reason/release`；如果项目已 `completed` 或 `stopped`，则由服务端直接清空该 lease
+- 无论本轮是否写图，只要项目仍是 `active` 且 reason lease 仍在自己手里，Dispatcher 都会在收尾时调用 `POST /api/projects/{project_id}/reason/release`；如果项目已 `completed` 或 `stopped`，则由服务端直接清空该 lease
 
 #### 超时与失败
 
@@ -428,14 +428,14 @@ dispatcher/
 
 | 接口 | 用途 | 何时使用 |
 | --- | --- | --- |
-| `POST /projects/{project_id}/intents/{intent_id}/heartbeat` | claim 并维持持有 | 派发前先 claim；执行中按 `interval` 周期发送 |
-| `POST /projects/{project_id}/intents/{intent_id}/conclude` | 产出 Fact 并结论落定 Intent | `execute` 或 `conclude` 返回合法结论后调用 |
-| `POST /projects/{project_id}/intents/{intent_id}/release` | 放弃当前尝试 | 失败路径使用 |
+| `POST /api/projects/{project_id}/intents/{intent_id}/heartbeat` | claim 并维持持有 | 派发前先 claim；执行中按 `interval` 周期发送 |
+| `POST /api/projects/{project_id}/intents/{intent_id}/conclude` | 产出 Fact 并结论落定 Intent | `execute` 或 `conclude` 返回合法结论后调用 |
+| `POST /api/projects/{project_id}/intents/{intent_id}/release` | 放弃当前尝试 | 失败路径使用 |
 
 派发顺序要求固定为：
 
 1. Dispatcher 先选中一个可认领 intent
-2. Dispatcher 先调用一次 `POST /projects/{project_id}/intents/{intent_id}/heartbeat` 作为 claim
+2. Dispatcher 先调用一次 `POST /api/projects/{project_id}/intents/{intent_id}/heartbeat` 作为 claim
 3. 只有 heartbeat 成功后，才真正启动 `explore` 对应的 Worker
 
 #### 超时与失败
@@ -453,9 +453,9 @@ dispatcher/
 正常完成：
 
 - 如果 `execute` 在 `timeout` 内正常返回合法 JSON，且 `accepted: true`
-- Dispatcher 直接调用 `POST /projects/{project_id}/intents/{intent_id}/conclude`
-- `POST /projects/{project_id}/intents/{intent_id}/conclude` 成功即完成结论落定，无需额外 `release`
-- 如果 `POST /projects/{project_id}/intents/{intent_id}/conclude` 写入失败，本次任务直接作废，不做立即重试，释放当前 intent，只记日志
+- Dispatcher 直接调用 `POST /api/projects/{project_id}/intents/{intent_id}/conclude`
+- `POST /api/projects/{project_id}/intents/{intent_id}/conclude` 成功即完成结论落定，无需额外 `release`
+- 如果 `POST /api/projects/{project_id}/intents/{intent_id}/conclude` 写入失败，本次任务直接作废，不做立即重试，释放当前 intent，只记日志
 
 可进入二阶段收尾的异常：
 
@@ -475,9 +475,9 @@ dispatcher/
 3. 在保持 heartbeat 的前提下，用同一个 session 直接进入 `conclude`
 4. `conclude` 的 prompt 必须明确要求“不要继续探索，只总结截至目前已经完成的探索与结论”
 5. 如果 `conclude` 在 `conclude_timeout` 内返回合法 JSON，且 `accepted: true`：
-   - Dispatcher 调用 `POST /projects/{project_id}/intents/{intent_id}/conclude`
+   - Dispatcher 调用 `POST /api/projects/{project_id}/intents/{intent_id}/conclude`
    - 成功则结束
-6. 如果 `conclude` 再次超时，或输出不合法，或返回 `accepted: false`，或 `POST /projects/{project_id}/intents/{intent_id}/conclude` 写入失败：
+6. 如果 `conclude` 再次超时，或输出不合法，或返回 `accepted: false`，或 `POST /api/projects/{project_id}/intents/{intent_id}/conclude` 写入失败：
    - 整次探索作废
    - 不写任何图数据
    - 释放当前 intent
@@ -552,8 +552,8 @@ if running_project_count < runtime.max_running_projects:
 2. 如果满足“新态势”重触发条件，优先派发 `reason`
 3. 否则如果存在未认领 intent，派发 `explore`
 4. `reason` 的去重按“态势”做，而不是按总图变化做：首次只有在当前没有任何 open intent 时才触发；之后只有当前 Fact / Hint 数量增加，或项目从“存在 open intents”进入“没有 open intents”时，才重新触发
-5. 如果 `reason` 返回 `data.complete`，Dispatcher 调用 `POST /projects/{project_id}/complete`
-6. 如果 `reason` 没有返回 `data.complete` 且带 `intent`，Dispatcher 调用 `POST /projects/{project_id}/intents`
+5. 如果 `reason` 返回 `data.complete`，Dispatcher 调用 `POST /api/projects/{project_id}/complete`
+6. 如果 `reason` 没有返回 `data.complete` 且带 `intent`，Dispatcher 调用 `POST /api/projects/{project_id}/intents`
 7. 如果 `reason` 既没有返回 `data.complete`，也没有返回 `intent`，则本轮不写图
 
 另外：
@@ -910,7 +910,7 @@ codex exec resume "{session}" --dangerously-bypass-approvals-and-sandbox --model
 
 ### `workers.*`
 
-Worker 模型列表的唯一权威来源是服务端数据库（`GET/PUT /models`），`dispatch.yaml` 里的 `workers` 只在数据库为空时被一次性 seed；之后每次调度轮开始前 dispatcher 都会重新拉取，变更下一轮生效。`common_env` 仍会对每个模型生效。并发上限、tick 间隔等运行参数仍来自配置文件，需要重启。
+Worker 模型列表的唯一权威来源是服务端数据库（`GET/PUT /api/models`），`dispatch.yaml` 里的 `workers` 只在数据库为空时被一次性 seed；之后每次调度轮开始前 dispatcher 都会重新拉取，变更下一轮生效。`common_env` 仍会对每个模型生效。并发上限、tick 间隔等运行参数仍来自配置文件，需要重启。
 
 模型列表为空不是错误：dispatcher 会告警一次并空转（不派发任何任务，也不再请求项目详情），等到 UI 里加入模型后自动恢复。
 
@@ -918,7 +918,7 @@ Worker 模型列表的唯一权威来源是服务端数据库（`GET/PUT /models
 
 dispatcher 启动时确定自己的实例标识（`CAIRN_INSTANCE_ID`，未设置则随机），写入协议的 `worker` 形如 `model@instance`。同名模型在不同实例上因此是不同 owner，服务端租约（`409`）能正确互斥，失败方在后续轮次重试。
 
-全局配额不再只看本地 futures，而是每轮 `GET /load` 得到的全局在跑数取较大值：`runtime.max_workers`、`runtime.max_running_projects`、`runtime.max_project_workers` 和每个 `workers[].max_running` 都按全局计算。两实例仍有极小的同时通过窗口（软上限）。
+全局配额不再只看本地 futures，而是每轮 `GET /api/load` 得到的全局在跑数取较大值：`runtime.max_workers`、`runtime.max_running_projects`、`runtime.max_project_workers` 和每个 `workers[].max_running` 都按全局计算。两实例仍有极小的同时通过窗口（软上限）。
 
 项目容器名带实例：`cairn-dispatch-<instance>-<project>`，共享 Docker 主机时不会互相复用或误停；`managed_container_names` 仍按 `cairn-dispatch-` 前缀扫描所有实例。local 模式的工作目录仍是 `<workspace_root>/<project_id>`，实例间共用。
 

@@ -1,6 +1,6 @@
 # Port to Go
 
-Cairn is Go end to end. `server/` is the API + SQLite graph store, `dispatcher/`
+Cairn is Go end to end. Every API route lives under `/api`; the web UI uses history routing with an index fallback. `server/` is the API + SQLite graph store, `dispatcher/`
 runs workers. They are separate binaries (module `server` and module
 `dispatcher`) that only speak the HTTP protocol in `server-protocol.md`.
 

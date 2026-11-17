@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -73,6 +74,14 @@ func newTestApp(t *testing.T) *testApp {
 }
 
 func (harness *testApp) request(t *testing.T, method, path string, body any) (int, []byte) {
+	t.Helper()
+	if !strings.HasPrefix(path, "/api") && !strings.HasPrefix(path, "/static") && path != "/" {
+		path = "/api" + path
+	}
+	return harness.raw(t, method, path, body)
+}
+
+func (harness *testApp) raw(t *testing.T, method, path string, body any) (int, []byte) {
 	t.Helper()
 	var reader io.Reader
 	if body != nil {
@@ -373,14 +382,18 @@ func TestForkReturns404ForUnknownProject(t *testing.T) {
 func TestOpenAPIAndDocsAreServed(t *testing.T) {
 	harness := newTestApp(t)
 	status, raw := harness.request(t, http.MethodGet, "/openapi.json", nil)
-	if status != http.StatusOK || !containsString(string(raw), "\"title\":\"Cairn\"") || !containsString(string(raw), "/projects/{project}/complete") {
+	if status != http.StatusOK || !containsString(string(raw), "\"title\":\"Cairn\"") || !containsString(string(raw), "/api/projects/{project}/complete") {
 		t.Fatalf("openapi status=%d body=%s", status, raw)
 	}
 	status, raw = harness.request(t, http.MethodGet, "/docs", nil)
 	if status != http.StatusOK || !containsString(string(raw), "swagger-ui") {
 		t.Fatalf("docs status=%d body=%s", status, raw)
 	}
-	if status, _ := harness.request(t, http.MethodGet, "/nope", nil); status != http.StatusNotFound {
-		t.Fatalf("unknown path status = %d", status)
+	if status, _ := harness.request(t, http.MethodGet, "/api/nope", nil); status != http.StatusNotFound {
+		t.Fatalf("unknown API path status = %d", status)
+	}
+	status, page := harness.raw(t, http.MethodGet, "/projects/proj_001", nil)
+	if status != http.StatusOK || !containsString(string(page), "<!doctype html>") {
+		t.Fatalf("history fallback status=%d body=%s", status, page)
 	}
 }

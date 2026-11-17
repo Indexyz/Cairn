@@ -1,7 +1,9 @@
+const API_BASE = "/api";
+
 export async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
   const options: RequestInit = { method, headers: { "Content-Type": "application/json" } };
   if (body !== undefined) options.body = JSON.stringify(body);
-  const response = await fetch(path, options);
+  const response = await fetch(API_BASE + path, options);
   if (response.status === 204) return null as T;
   const text = await response.text();
   let data: unknown = null;
@@ -25,7 +27,7 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
 }
 
 export async function fetchText(path: string): Promise<string> {
-  const response = await fetch(path);
+  const response = await fetch(API_BASE + path);
   const text = await response.text();
   if (!response.ok) {
     let detail = text;

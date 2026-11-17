@@ -12,6 +12,8 @@
 
 系统不做任何推理和决策，只负责图的一致性维护。
 
+所有 API 路径统一以 `/api` 为前缀；Web UI 与静态资源仍在根路径，`/api/docs`、`/api/openapi.json` 属于 API。前端使用 history 路由，非 `/api`、非 `/static` 的 GET 路径回落到 `index.html`。
+
 ### 设计渊源
 
 这套协议是**黑板架构**（Blackboard Architecture）的现代化重构。1970 年代 CMU 的 Hearsay-II 系统提出了同样的范式：多个专家围绕一块共享黑板工作，各自读取当前状态，各自贡献新知识，没有中央调度。Fact 对应黑板上的内容，Intent 对应专家的行动记录，Hint 对应旁注。区别在于：经典黑板只有"当前状态"，本协议通过 Intent 保留了完整的因果链，使得图同时是知识库和推理路径的审计日志。
@@ -231,7 +233,7 @@ env           # 环境变量对象，字符串键值；容器模式下必须包�
 
 ### 全局设置
 
-#### GET /settings
+#### GET /api/settings
 
 返回全局配置。
 
@@ -246,7 +248,7 @@ env           # 环境变量对象，字符串键值；容器模式下必须包�
 
 ---
 
-#### PUT /settings
+#### PUT /api/settings
 
 更新全局配置。
 
@@ -263,11 +265,11 @@ Body：
 
 ### Notifications
 
-#### GET /notifications
+#### GET /api/notifications
 
 返回全部推送渠道，按 `created_at`、`id` 升序。
 
-#### POST /notifications
+#### POST /api/notifications
 
 新建渠道，返回 `201`。字段不合法返回 `422`。
 
@@ -283,15 +285,15 @@ Body：
 }
 ```
 
-#### PUT /notifications/{channel_id}
+#### PUT /api/notifications/{channel_id}
 
 覆盖式更新渠道（含 `enabled`），可用于整体改写或切换启用状态。不存在返回 `404`。
 
-#### DELETE /notifications/{channel_id}
+#### DELETE /api/notifications/{channel_id}
 
 删除渠道，返回 `204`。已发出的消息不受影响。
 
-#### POST /notifications/{channel_id}/test
+#### POST /api/notifications/{channel_id}/test
 
 立即发送一条样例消息，忽略 `enabled`，便于在启用前验证凭据。
 
@@ -310,11 +312,11 @@ Body：
 
 ### Models
 
-#### GET /models
+#### GET /api/models
 
 返回全部模型，按 `priority`、`name` 升序。
 
-#### POST /models
+#### POST /api/models
 
 新建模型。名称重复返回 `409`，字段不合法返回 `422`。
 
@@ -335,7 +337,7 @@ Body：
 }
 ```
 
-#### PUT /models
+#### PUT /api/models
 
 以整份快照替换模型集合：未出现的名称被删除，出现的名称被新增或更新，单事务提交。名称重复返回 `422`。
 
@@ -345,11 +347,11 @@ Body：
 { "models": [ { "name": "...", "type": "...", "task_types": [], "max_running": 1, "priority": 0, "env": {} } ] }
 ```
 
-#### PUT /models/{name}
+#### PUT /api/models/{name}
 
 更新单个模型，允许改名（`body.name` 与路径不同，冲突时返回 `409`）。模型不存在返回 `404`。
 
-#### GET /load
+#### GET /api/load
 
 返回全局在跑负载，由未过期的租约推导（过期租约先清理）。dispatcher 每轮调度前读取，多个 dispatcher 据此共享同一份配额。
 
@@ -364,7 +366,7 @@ Body：
 }
 ```
 
-#### POST /models/{name}/test
+#### POST /api/models/{name}/test
 
 用 dispatcher 自己的 worker 健康检查探测该模型，请求由 **server 主机** 发起（可能与 dispatcher 主机不同），默认超时 10 秒，可用 `timeout` 查询参数调整（上限 60）。模型不存在返回 `404`，环境变量缺失返回 `422`。
 
@@ -380,7 +382,7 @@ Body：
 }
 ```
 
-#### DELETE /models/{name}
+#### DELETE /api/models/{name}
 
 删除模型。模型不存在返回 `404`。
 
@@ -388,7 +390,7 @@ Body：
 
 ### Projects
 
-#### GET /projects
+#### GET /api/projects
 
 返回所有项目列表，含元信息和统计摘要，不含图数据。
 
@@ -419,7 +421,7 @@ Body：
 
 ---
 
-#### POST /projects
+#### POST /api/projects
 
 创建新项目。`origin` 和 `goal` 写入 `facts` 作为特殊 Fact。`hints` 可选。`bootstrap_enabled` 可选，默认为 `true`；为 `false` 时消费者跳过 bootstrap。即使为 `true`，消费者没有 bootstrap 能力时也可直接进入 reason。`max_steps` 可选，为正整数时限制该项目可声明的 Intent 总数，`null` 或缺省表示不限制。
 
@@ -441,7 +443,7 @@ Body：
 
 ---
 
-#### POST /projects/{project_id}/fork
+#### POST /api/projects/{project_id}/fork
 
 以源项目的 `origin`、`goal`、`hints`、`bootstrap_enabled` 和 `max_steps` 新建一个项目。不复制事实（除 `origin`/`goal`）与意图，hint id 按新项目重新编号，内容与作者保留，创建时间取当前时间。源项目不存在返回 `404`。
 
@@ -453,7 +455,7 @@ Body（可省略）：
 
 `title` 缺省或全空白时取 `<源标题> (fork)`。响应为 `201` 与新项目详情。
 
-#### GET /projects/{project_id}
+#### GET /api/projects/{project_id}
 
 返回项目完整数据，包含 facts、intents、hints。
 
@@ -512,7 +514,7 @@ Body（可省略）：
 
 ---
 
-#### DELETE /projects/{project_id}
+#### DELETE /api/projects/{project_id}
 
 删除项目及其所有数据。
 
@@ -520,7 +522,7 @@ Body（可省略）：
 
 ---
 
-#### PUT /projects/{project_id}/title
+#### PUT /api/projects/{project_id}/title
 
 修改项目标题。该操作不改变项目图，也不影响 `reason` lease、open intent claim 或项目状态；无论项目当前是 `active`、`stopped` 还是 `completed`，都允许修改标题。
 
@@ -546,7 +548,7 @@ Body：
 
 ---
 
-#### PUT /projects/{project_id}/status
+#### PUT /api/projects/{project_id}/status
 
 更新项目状态。仅允许 `active` 和 `stopped` 之间切换。`completed` 项目不可通过该接口再次变更状态；若需要撤销完成态，必须调用专用的 `reopen` 接口。`blocked` 可以通过该接口恢复到 `active` 或切到 `stopped`。该接口属于项目管理操作，不属于探索写操作。
 
@@ -576,7 +578,7 @@ Body：
 
 ---
 
-#### PUT /projects/{project_id}/max_steps
+#### PUT /api/projects/{project_id}/max_steps
 
 设置或清除项目的 Intent 步数预算。`max_steps` 为正整数，`null` 表示不限制。`completed` 项目返回 `409`。
 
@@ -594,7 +596,7 @@ Body：
 
 ---
 
-#### POST /projects/{project_id}/reason/claim
+#### POST /api/projects/{project_id}/reason/claim
 
 认领项目级 `reason` lease。它不属于图，不产生 Intent/Fact，只表示“当前有人正在对整个项目做一次 `reason` 判断”。单个项目同一时刻最多只能有一个 `reason` lease。
 
@@ -628,7 +630,7 @@ Body：
 
 ---
 
-#### POST /projects/{project_id}/reason/heartbeat
+#### POST /api/projects/{project_id}/reason/heartbeat
 
 当前 `worker` 对项目级 `reason` lease 续约，更新 `last_heartbeat_at`。仅当前持有该 lease 的 `worker` 可以续约；若当前无人持有，返回 409；若被其他消费者占用且未超时，返回 409。该接口属于探索写操作，仅 `active` 或 `blocked` 项目允许；`stopped` 或 `completed` 返回 403。
 
@@ -642,7 +644,7 @@ Body：
 
 ---
 
-#### POST /projects/{project_id}/reason/release
+#### POST /api/projects/{project_id}/reason/release
 
 当前 `worker` 主动释放项目级 `reason` lease，使其立刻回到无人执行 `reason` 的状态。仅当前持有者本人可以释放；若当前已为空，则幂等返回当前状态；若被其他消费者占用且未超时，返回 409。该接口属于探索写操作，仅 `active` 或 `blocked` 项目允许；`stopped` 或 `completed` 返回 403。
 
@@ -658,7 +660,7 @@ Body：
 
 ### Hints
 
-#### POST /projects/{project_id}/hints
+#### POST /api/projects/{project_id}/hints
 
 向项目补充一条策略提示。Hint 属于图外输入写操作，`active`、`stopped` 和 `completed` 项目均允许。
 
@@ -675,7 +677,7 @@ Body：
 
 ### Intents
 
-#### POST /projects/{project_id}/intents
+#### POST /api/projects/{project_id}/intents
 
 从某个 Fact 出发声明探索意图，产生一条尚无结论的 Intent。可选择只声明，或声明并同时认领。Intent 属于探索写操作，仅 `active` 或 `blocked` 项目允许；`stopped` 或 `completed` 返回 403。
 
@@ -711,7 +713,7 @@ Body：
 
 ---
 
-#### POST /projects/{project_id}/intents/{intent_id}/heartbeat
+#### POST /api/projects/{project_id}/intents/{intent_id}/heartbeat
 
 消费者上报存活，更新 `worker` 和 `last_heartbeat_at`。仅对尚无结论的 Intent 有效。该接口用于续约，或在某条 Intent 已超时变为未认领后重新接手。若当前 `worker` 为 `null`，任意消费者可通过 heartbeat 认领；若当前 `worker` 已被其他消费者占用且未超时，返回 409。Heartbeat 属于探索写操作，仅 `active` 或 `blocked` 项目允许；`stopped` 或 `completed` 返回 403。
 
@@ -727,7 +729,7 @@ Body：
 
 ---
 
-#### POST /projects/{project_id}/intents/{intent_id}/release
+#### POST /api/projects/{project_id}/intents/{intent_id}/release
 
 当前 `worker` 主动释放一条尚无结论的 Intent，使其回到未认领状态，供其他消费者立即接手。仅当前 `worker` 本人可以释放；若被其他消费者占用且未超时，返回 409。若该 Intent 当前已未认领，则幂等返回当前状态。`last_heartbeat_at` 保留，不清空。Release 属于探索写操作，仅 `active` 或 `blocked` 项目允许；`stopped` 或 `completed` 返回 403。
 
@@ -743,7 +745,7 @@ Body：
 
 ---
 
-#### POST /projects/{project_id}/intents/{intent_id}/conclude
+#### POST /api/projects/{project_id}/intents/{intent_id}/conclude
 
 探索结束，产出新 Fact 并将 Intent 结论落定。原子操作。仅对尚无结论的 Intent 有效。claim 规则与 heartbeat 相同：未认领可直接 conclude；由当前 `worker` conclude；若被其他消费者占用且未超时，返回 409。Conclude 属于探索写操作，仅 `active` 或 `blocked` 项目允许；`stopped` 或 `completed` 返回 403。
 
@@ -782,13 +784,13 @@ Body：
 
 ---
 
-#### POST /projects/{project_id}/complete
+#### POST /api/projects/{project_id}/complete
 
 消费者判断某些 Facts 共同满足 goal 后调用，声明项目完成。原子操作。Complete 属于探索写操作，仅 `active` 或 `blocked` 项目允许；`stopped` 或 `completed` 返回 403。
 
 创建一条 `from` 指向所列 Facts、`to` 指向 `goal` 的已结论 Intent。完成声明无探索过程，服务端将 `creator` 和 `worker` 均设为请求中的 `worker` 值。Project 状态变为 `completed`，并立即清空当前 `project.reason`。
 
-如果后续外部验证发现这次完成判断有误，可再调用 `POST /projects/{project_id}/reopen` 撤销这条完成边，并把纠错信息写成新的 Fact 后继续探索。
+如果后续外部验证发现这次完成判断有误，可再调用 `POST /api/projects/{project_id}/reopen` 撤销这条完成边，并把纠错信息写成新的 Fact 后继续探索。
 
 `from` 不能包含 `goal`。
 
@@ -804,7 +806,7 @@ Body：
 
 ---
 
-#### POST /projects/{project_id}/reopen
+#### POST /api/projects/{project_id}/reopen
 
 外部确认项目其实尚未完成时，显式撤销当前完成态。该接口属于项目管理操作，不属于探索写操作；仅 `completed` 项目允许调用。
 
@@ -863,7 +865,7 @@ Body：
 
 ### 导出
 
-#### GET /projects/{project_id}/export?format=yaml
+#### GET /api/projects/{project_id}/export?format=yaml
 
 返回项目图的 YAML 结构化快照，供消费者读取。不含 `last_heartbeat_at`。尚无结论的 Intent（`to=null`）出现在 YAML 中，`worker` 字段直接反映当前是否有消费者在处理。`project.reason` 不在导出中出现，因为它是项目级协调状态，不属于事实图。读取时服务端仍会执行超时清理，因此导出结果反映的是清理后的当前状态。`created_at` 和 `concluded_at` 按服务端当前时区格式化为 `YYYY-MM-DD HH:mm:ss`。
 
@@ -992,7 +994,7 @@ intents:
 
 ---
 
-#### GET /projects/{project_id}/export?format=timeline
+#### GET /api/projects/{project_id}/export?format=timeline
 
 返回项目的时间线纯文本，按事件发生时间排序。YAML 快照展示图的结构拓扑，timeline 展示事件的先后顺序和因果链，两者互补。事件类型包括 `PROJECT CREATED`、`HINT`、`INTENT DECLARED`、`INTENT CONCLUDED`、`PROJECT COMPLETED`。若项目曾经完成后又被 `reopen`，由于旧的 `goal` 边已被撤销，timeline 中不会保留之前那次 `PROJECT COMPLETED` 事件。
 
@@ -1004,7 +1006,7 @@ intents:
 1. 读取结构化项目数据
    用于调度、状态判断、intent 选择与协议写回
 
-2. GET /projects/{id}/export?format=yaml
+2. GET /api/projects/{id}/export?format=yaml
    读取图快照（仅供 Dispatcher 渲染给 Agent）
 
 3. 若项目仍处于最初阶段：
@@ -1012,63 +1014,63 @@ intents:
    某些消费者会允许“没有任何 intent”，或“只存在保留 bootstrap intent”都视为初始态
    若 `project.bootstrap_enabled=false`，或消费者不具备 bootstrap 能力，则直接进入 reason；
    a. 若尚不存在保留 bootstrap intent：
-      POST /projects/{id}/intents
+      POST /api/projects/{id}/intents
         { from: ["origin"], description: "bootstrap", creator: "dispatcher.bootstrap", worker: null }
-   b. POST /projects/{id}/intents/{intent_id}/heartbeat
+   b. POST /api/projects/{id}/intents/{intent_id}/heartbeat
         { worker: "dispatcher-worker-A" }
       认领成功后，直接做一轮 `bootstrap`
    c. 推进过程中持续 heartbeat
    d. 若拿到了关键证明性事实：
-      POST /projects/{id}/intents/{intent_id}/conclude
+      POST /api/projects/{id}/intents/{intent_id}/conclude
         { worker: "dispatcher-worker-A", description: "发现登录页存在默认口令 admin:admin" }
       若该新 fact 已足以满足 goal，也可继续：
-      POST /projects/{id}/complete
+      POST /api/projects/{id}/complete
         { from: ["新写入的 fact id"], description: "为什么该事实已足以满足 goal", worker: "dispatcher-worker-A" }
    e. 若本轮 bootstrap 失败且需要放弃：
-      POST /projects/{id}/intents/{intent_id}/release
+      POST /api/projects/{id}/intents/{intent_id}/release
         { worker: "dispatcher-worker-A" }
    f. 回到步骤 1
 
 4. 若图中存在未认领的普通 Intent（worker=null）：
    a. 选择一条可认领 Intent
-   b. POST /projects/{id}/intents/{intent_id}/heartbeat
+   b. POST /api/projects/{id}/intents/{intent_id}/heartbeat
         { worker: "dispatcher-worker-A" }
       认领成功后，派发一次 `explore`
    c. 探索过程中持续 heartbeat
    d. 探索成功时：
-      POST /projects/{id}/intents/{intent_id}/conclude
+      POST /api/projects/{id}/intents/{intent_id}/conclude
         { worker: "dispatcher-worker-A", description: "发现 /search 参数存在报错注入" }
    e. 若探索失败且需要放弃：
-      POST /projects/{id}/intents/{intent_id}/release
+      POST /api/projects/{id}/intents/{intent_id}/release
         { worker: "dispatcher-worker-A" }
    f. 回到步骤 1
 
 5. 若图中没有未认领 Intent：
-   a. POST /projects/{id}/reason/claim
+   a. POST /api/projects/{id}/reason/claim
         { worker: "dispatcher-worker-A", trigger: "new_facts" }
       认领成功后，派发一次 `reason`
-   b. 推进过程中持续 POST /projects/{id}/reason/heartbeat
+   b. 推进过程中持续 POST /api/projects/{id}/reason/heartbeat
         { worker: "dispatcher-worker-A" }
    c. 若 `reason` 返回完成结论：
-      POST /projects/{id}/complete
+      POST /api/projects/{id}/complete
         { from: ["f008"], description: "flag{abc} 满足 goal 要求", worker: "dispatcher-worker-A" }
       流程结束
    d. 若 `reason` 返回新的 intent：
-      POST /projects/{id}/intents
+      POST /api/projects/{id}/intents
         { from: ["f003"], description: "尝试 SQL 注入", creator: "dispatcher-worker-A", worker: null }
-      然后 POST /projects/{id}/reason/release
+      然后 POST /api/projects/{id}/reason/release
         { worker: "dispatcher-worker-A" }
    e. 若 `reason` 未返回完成结论，也未返回新 intent：
-      POST /projects/{id}/reason/release
+      POST /api/projects/{id}/reason/release
         { worker: "dispatcher-worker-A" }
       本轮不写图
    f. 若 `reason` 执行失败、超时或需要放弃：
-      POST /projects/{id}/reason/release
+      POST /api/projects/{id}/reason/release
         { worker: "dispatcher-worker-A" }
    g. 回到步骤 1
 
 6. 若项目已 `completed`，但图外验证确认之前的完成判断有误：
-   a. POST /projects/{id}/reopen
+   a. POST /api/projects/{id}/reopen
         { description: "flag FLAG{fake} 是错误的，需要继续寻找正确 flag", creator: "judge" }
    b. 项目回到 `active`，图中新增一条 `external_feedback` 结论边和一个纠错 Fact
    c. 回到步骤 1

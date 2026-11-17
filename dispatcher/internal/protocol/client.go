@@ -148,7 +148,7 @@ func (client *Client) who(worker string) string {
 	return worker + "@" + client.instanceID
 }
 
-func (client *Client) url(path string) string { return client.baseURL + path }
+func (client *Client) url(path string) string { return client.baseURL + "/api" + path }
 
 // ListProjects returns every project summary.
 func (client *Client) ListProjects() ([]ProjectSummary, error) {

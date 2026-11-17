@@ -38,7 +38,7 @@ func TestClientTrimsBaseURL(t *testing.T) {
 	if client.baseURL != "http://server" {
 		t.Fatalf("baseURL = %q", client.baseURL)
 	}
-	if !strings.HasSuffix(client.url("/projects"), "http://server/projects") {
+	if !strings.HasSuffix(client.url("/projects"), "http://server/api/projects") {
 		t.Fatalf("url = %q", client.url("/projects"))
 	}
 }

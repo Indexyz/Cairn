@@ -118,7 +118,7 @@ func startServer(t *testing.T, root string) *server {
 
 	deadline := time.Now().Add(60 * time.Second)
 	for time.Now().Before(deadline) {
-		response, err := http.Get(instance.baseURL + "/settings")
+		response, err := http.Get(instance.baseURL + "/api/settings")
 		if err == nil {
 			response.Body.Close()
 			if response.StatusCode == 200 {
@@ -134,7 +134,7 @@ func startServer(t *testing.T, root string) *server {
 func (instance *server) createProject(t *testing.T) string {
 	t.Helper()
 	body, _ := json.Marshal(map[string]any{"title": "integration", "origin": "start", "goal": "finish"})
-	response, err := http.Post(instance.baseURL+"/projects", "application/json", bytes.NewReader(body))
+	response, err := http.Post(instance.baseURL+"/api/projects", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("create project: %v", err)
 	}
@@ -169,7 +169,7 @@ type projectDetail struct {
 
 func (instance *server) project(t *testing.T, projectID string) projectDetail {
 	t.Helper()
-	response, err := http.Get(instance.baseURL + "/projects/" + projectID)
+	response, err := http.Get(instance.baseURL + "/api/projects/" + projectID)
 	if err != nil {
 		t.Fatalf("get project: %v", err)
 	}
