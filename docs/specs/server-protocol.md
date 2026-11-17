@@ -309,6 +309,8 @@ Body：
 }
 ```
 
+发出的消息始终带项目链接：`webhook` 渠道在 JSON 里多一个 `project_url` 字段，`discord` / `telegram` 的正文末尾多一行链接。链接前缀取自服务端启动参数 `--public-url`（或环境变量 `CAIRN_PUBLIC_URL`），未设置时退化为相对路径 `/projects/{project_id}`。
+
 ---
 
 ### Models

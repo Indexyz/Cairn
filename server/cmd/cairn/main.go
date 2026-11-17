@@ -39,6 +39,7 @@ func main() {
 	noAccessLog := flags.Bool("no-access-log", false, "Disable access logs")
 	schedulerInterval := flags.Duration("scheduler-interval", 30*time.Second, "How often to check for due schedules")
 	noScheduler := flags.Bool("no-scheduler", false, "Do not fire schedules from this process")
+	publicURL := flags.String("public-url", os.Getenv("CAIRN_PUBLIC_URL"), "External base URL used in notification links")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		os.Exit(2)
 	}
@@ -58,6 +59,7 @@ func main() {
 		HTTPClient: &http.Client{Timeout: 60 * time.Second},
 		Deliverer:  &notify.Deliverer{Client: &http.Client{Timeout: 10 * time.Second}},
 		AccessLog:  *accessLog,
+		PublicURL:  *publicURL,
 		Logger:     func(format string, args ...any) { log.Printf(format, args...) },
 	}
 	server := &http.Server{

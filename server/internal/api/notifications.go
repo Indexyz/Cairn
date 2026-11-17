@@ -145,7 +145,7 @@ func (app *App) testChannel(w http.ResponseWriter, r *http.Request) error {
 		ID: channel.ID, Name: channel.Name, Kind: channel.Kind, Events: channel.Events, Config: channel.Config,
 	}
 	text := notify.RenderTest(channel.Name)
-	result := app.Deliverer.Send(target, "test", "proj_000", channel.Name, text)
+	result := app.Deliverer.Send(target, "test", "proj_000", channel.Name, text, app.projectLink("proj_000"))
 	writeJSON(w, http.StatusOK, domain.NotificationTestResult{
 		OK: result.OK, Status: result.Status, Detail: result.Detail, DurationMs: result.DurationMs,
 	})

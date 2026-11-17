@@ -127,6 +127,8 @@ let
       "${cfg.stateDir}/cairn.db"
     ]
     ++ optional (!cfg.server.accessLog) "--no-access-log"
+    ++ optional (cfg.server.publicUrl != null) "--public-url"
+    ++ optional (cfg.server.publicUrl != null) cfg.server.publicUrl
   );
 
   hardening = {
@@ -205,6 +207,16 @@ in
         type = types.bool;
         default = false;
         description = "Log every HTTP request.";
+      };
+
+      publicUrl = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Externally reachable base URL, used to link projects from notifications.
+          Falls back to a relative path when unset.
+        '';
+        example = "https://cairn.example.com";
       };
     };
 

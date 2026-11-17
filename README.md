@@ -227,7 +227,7 @@ Every firing creates a fresh project, so each run gets its own graph; schedules 
 
 While the project a schedule created is still `active`, the next firing is **skipped** and counted instead of piling a second run on top; a `blocked`, `stopped`, `completed` or deleted project lets the following firing through again. Firing failures are recorded as `failed` with the error text and do not advance anything else. Disabling a schedule clears its next firing; saving one re-anchors it from now. Deleting a schedule leaves the projects it created running.
 
-The server fires schedules — no dispatcher involved — so run exactly one server per database and do not disable the ticker on it. `cairn serve --scheduler-interval 30s` sets the check interval (default `30s`); `--no-scheduler` keeps a second instance from firing the same schedules twice. The server embeds the timezone database, so IANA zone names work on hosts without tzdata.
+The server fires schedules — no dispatcher involved — so run exactly one server per database and do not disable the ticker on it. `cairn serve --scheduler-interval 30s` sets the check interval (default `30s`); `--no-scheduler` keeps a second instance from firing the same schedules twice. Set `--public-url` (or `CAIRN_PUBLIC_URL`) to the URL people open the UI at, so notification messages link straight to the project. The server embeds the timezone database, so IANA zone names work on hosts without tzdata.
 
 ### Several dispatchers
 

@@ -16,6 +16,7 @@
     enable = true;
     openFirewall = true;
     server.host = "0.0.0.0";
+    server.publicUrl = "https://cairn.example.com";
 
     dispatcher.enable = true;
     dispatcher.workers = [

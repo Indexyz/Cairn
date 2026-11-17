@@ -43,12 +43,12 @@ type Deliverer struct {
 }
 
 // Notify queues one message per channel.
-func (deliverer *Deliverer) Notify(channels []Channel, event, projectID, title, text string) {
+func (deliverer *Deliverer) Notify(channels []Channel, event, projectID, title, text, link string) {
 	for _, channel := range channels {
 		deliverer.wg.Add(1)
 		go func(channel Channel) {
 			defer deliverer.wg.Done()
-			deliverer.Send(channel, event, projectID, title, text)
+			deliverer.Send(channel, event, projectID, title, text, link)
 		}(channel)
 	}
 }
@@ -57,8 +57,8 @@ func (deliverer *Deliverer) Notify(channels []Channel, event, projectID, title, 
 func (deliverer *Deliverer) Wait() { deliverer.wg.Wait() }
 
 // Send delivers one message and never panics.
-func (deliverer *Deliverer) Send(channel Channel, event, projectID, title, text string) Result {
-	target, body := payload(channel, event, projectID, title, text)
+func (deliverer *Deliverer) Send(channel Channel, event, projectID, title, text, link string) Result {
+	target, body := payload(channel, event, projectID, title, text, link)
 	encoded, err := json.Marshal(body)
 	if err != nil {
 		return Result{Detail: err.Error()}
@@ -98,10 +98,13 @@ var EventLabels = map[string]string{
 }
 
 // RenderMessage builds the pushed text.
-func RenderMessage(event, projectID, title, detail string) string {
+func RenderMessage(event, projectID, title, detail, link string) string {
 	lines := []string{"[Cairn] " + EventLabels[event], projectID + " · " + title}
 	if strings.TrimSpace(detail) != "" {
 		lines = append(lines, strings.TrimSpace(detail))
+	}
+	if link != "" {
+		lines = append(lines, link)
 	}
 	lines = append(lines, utcnow())
 	return strings.Join(lines, "\n")
@@ -117,7 +120,7 @@ func RenderTest(channelName string) string {
 	}, "\n")
 }
 
-func payload(channel Channel, event, projectID, title, text string) (string, map[string]any) {
+func payload(channel Channel, event, projectID, title, text, link string) (string, map[string]any) {
 	switch channel.Kind {
 	case domain.KindDiscord:
 		return channel.Config["webhook_url"], map[string]any{
@@ -129,7 +132,7 @@ func payload(channel Channel, event, projectID, title, text string) (string, map
 		}
 	default:
 		return channel.Config["url"], map[string]any{
-			"event": event, "project_id": projectID, "title": title, "text": text,
+			"event": event, "project_id": projectID, "title": title, "text": text, "project_url": link,
 		}
 	}
 }

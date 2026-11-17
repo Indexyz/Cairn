@@ -31,7 +31,9 @@ type App struct {
 	Deliverer  *notify.Deliverer
 	HTTPClient *http.Client
 	AccessLog  bool
-	Logger     func(format string, args ...any)
+	// PublicURL is the externally reachable base URL used in notification links.
+	PublicURL string
+	Logger    func(format string, args ...any)
 }
 
 // New builds the handler.
@@ -221,6 +223,15 @@ func (app *App) checkModel(ctx context.Context, model *domain.WorkerModel, timeo
 	}, nil
 }
 
+// projectLink builds the browser URL for a project.
+func (app *App) projectLink(projectID string) string {
+	base := strings.TrimRight(app.PublicURL, "/")
+	if base == "" {
+		return "/projects/" + projectID
+	}
+	return base + "/projects/" + projectID
+}
+
 // NotifyProjectCreated pushes the project_created event from inside a write tx.
 func (app *App) NotifyProjectCreated(ctx context.Context, conn *sql.Conn, projectID, title string) {
 	app.pendingNotify(ctx, conn, "project_created", projectID, title, "")
@@ -255,11 +266,12 @@ func (app *App) pendingNotify(ctx context.Context, conn *sql.Conn, event, projec
 	if len(targets) == 0 {
 		return
 	}
-	text := notify.RenderMessage(event, projectID, title, detail)
+	link := app.projectLink(projectID)
+	text := notify.RenderMessage(event, projectID, title, detail, link)
 	if app.Deliverer == nil {
 		return
 	}
-	app.Deliverer.Notify(targets, event, projectID, title, text)
+	app.Deliverer.Notify(targets, event, projectID, title, text, link)
 }
 
 func contains(values []string, needle string) bool {

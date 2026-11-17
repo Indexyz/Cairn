@@ -267,3 +267,41 @@ func TestChannelDefaultsToEnabled(t *testing.T) {
 		t.Fatalf("status=%d payload=%v", status, channel)
 	}
 }
+
+func TestNotificationsCarryTheProjectLink(t *testing.T) {
+	harness := newTestApp(t)
+	harness.app.PublicURL = "https://cairn.example.com/"
+	body := discordChannel()
+	body["events"] = []string{"project_completed"}
+	harness.json(t, http.MethodPost, "/notifications", body)
+	harness.json(t, http.MethodPost, "/notifications", map[string]any{
+		"name": "hook", "kind": "webhook", "enabled": true,
+		"events": []string{"project_completed"}, "config": map[string]string{"url": "https://x.test/hook"},
+	})
+
+	projectID := harness.createProject(t)
+	harness.json(t, http.MethodPost, "/projects/"+projectID+"/complete",
+		map[string]any{"from": []string{"origin"}, "description": "done", "worker": "reasoner"})
+	harness.waitDeliveries()
+
+	want := "https://cairn.example.com/projects/" + projectID
+	for _, call := range harness.recorder.snapshot() {
+		switch call.URL {
+		case "https://x.test/hook":
+			if call.Body["project_url"] != want {
+				t.Fatalf("project_url = %v, want %s", call.Body["project_url"], want)
+			}
+		default:
+			if content, _ := call.Body["content"].(string); !containsString(content, want) {
+				t.Fatalf("discord content = %q", content)
+			}
+		}
+	}
+}
+
+func TestProjectLinkFallsBackToARelativePath(t *testing.T) {
+	harness := newTestApp(t)
+	if got := harness.app.projectLink("proj_001"); got != "/projects/proj_001" {
+		t.Fatalf("link = %q", got)
+	}
+}
