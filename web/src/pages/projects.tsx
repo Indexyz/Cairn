@@ -13,7 +13,7 @@ import {
 import { usePrefs } from "@/hooks/use-prefs";
 import { useToast } from "@/hooks/use-toast";
 import { api, fetchText } from "@/lib/api";
-import type { ProjectDetail, ProjectStatus, ProjectSummary, Schedule } from "@/lib/types";
+import type { Hint, ProjectDetail, ProjectStatus, ProjectSummary, Schedule } from "@/lib/types";
 import { ProjectRow } from "@/components/projects/project-row";
 import { ProjectsDialogs } from "@/components/projects/projects-dialogs";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +64,10 @@ export function useProjectsPage() {  const toast = useToast();
   const [removal, setRemoval] = useState<{ id: string; title: string } | null>(null);
   const [forking, setForking] = useState<{ id: string; title: string } | null>(null);
   const [forkTitle, setForkTitle] = useState("");
+  const [forkHints, setForkHints] = useState<Hint[]>([]);
+  const [forkSelected, setForkSelected] = useState<Set<string>>(new Set());
+  const [forkHintsLoading, setForkHintsLoading] = useState(false);
+  const [forkHintsFailed, setForkHintsFailed] = useState(false);
   const [forkingBusy, setForkingBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const nextHintId = useRef(1);
@@ -233,12 +237,41 @@ export function useProjectsPage() {  const toast = useToast();
     }
   }
 
+  async function openFork(project: ProjectSummary) {
+    setForkTitle(`${project.title} (fork)`);
+    setForking({ id: project.id, title: project.title });
+    setForkHints([]);
+    setForkSelected(new Set());
+    setForkHintsFailed(false);
+    setForkHintsLoading(true);
+    try {
+      const detail = await api<ProjectDetail>("GET", `/projects/${project.id}`);
+      setForkHints(detail.hints);
+      setForkSelected(new Set(detail.hints.map((hint) => hint.id)));
+    } catch (error) {
+      setForkHintsFailed(true);
+      toast.show((error as Error).message, "error");
+    } finally {
+      setForkHintsLoading(false);
+    }
+  }
+
+  function toggleForkHint(id: string) {
+    setForkSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   async function forkProject() {
-    if (!forking || forkingBusy) return;
+    if (!forking || forkingBusy || forkHintsLoading) return;
     setForkingBusy(true);
     try {
       const forked = await api<ProjectDetail>("POST", `/projects/${forking.id}/fork`, {
         title: forkTitle.trim() || null,
+        hint_ids: forkHintsFailed ? undefined : [...forkSelected],
       });
       setForking(null);
       await load();
@@ -285,8 +318,15 @@ export function useProjectsPage() {  const toast = useToast();
     filtered,
     forkProject,
     forkTitle,
+    forkHints,
+    forkSelected,
+    setForkSelected,
+    forkHintsLoading,
+    forkHintsFailed,
     forking,
     forkingBusy,
+    openFork,
+    toggleForkHint,
     newForm,
     newOpen,
     nextHintId,
@@ -329,8 +369,15 @@ export function ProjectsPage() {
     filtered,
     forkProject,
     forkTitle,
+    forkHints,
+    forkSelected,
+    setForkSelected,
+    forkHintsLoading,
+    forkHintsFailed,
     forking,
     forkingBusy,
+    openFork,
+    toggleForkHint,
     newForm,
     newOpen,
     nextHintId,
@@ -453,10 +500,7 @@ export function ProjectsPage() {
                       project={row.project}
                       inGroup={false}
                       onRename={(project) => setRename({ id: project.id, title: project.title })}
-                      onFork={(project) => {
-                        setForkTitle(`${project.title} (fork)`);
-                        setForking({ id: project.id, title: project.title });
-                      }}
+                      onFork={(project) => void openFork(project)}
                       onSnapshot={(project) => void openSnapshot(project)}
                       onStatus={(project, next) => void setProjectStatus(project.id, next)}
                       onDelete={(project) => setRemoval({ id: project.id, title: project.title })}
@@ -503,10 +547,7 @@ export function ProjectsPage() {
                             project={project}
                             inGroup
                             onRename={(item) => setRename({ id: item.id, title: item.title })}
-                            onFork={(item) => {
-                              setForkTitle(`${item.title} (fork)`);
-                              setForking({ id: item.id, title: item.title });
-                            }}
+                            onFork={(item) => void openFork(item)}
                             onSnapshot={(item) => void openSnapshot(item)}
                             onStatus={(item, next) => void setProjectStatus(item.id, next)}
                             onDelete={(item) => setRemoval({ id: item.id, title: item.title })}
@@ -545,6 +586,12 @@ export function ProjectsPage() {
         setForking={setForking}
         forkTitle={forkTitle}
         setForkTitle={setForkTitle}
+        forkHints={forkHints}
+        forkSelected={forkSelected}
+        setForkSelected={setForkSelected}
+        forkHintsLoading={forkHintsLoading}
+        forkHintsFailed={forkHintsFailed}
+        toggleForkHint={toggleForkHint}
         forkProject={forkProject}
         forkingBusy={forkingBusy}
         removal={removal}

@@ -104,6 +104,9 @@ func (app *App) forkProject(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	body.NormalizeTitle()
+	if validation := body.ValidateHintIDs(); validation != nil {
+		return validation
+	}
 	return app.tx(w, r, func(ctx context.Context, conn *sql.Conn) (int, any, error) {
 		source, err := domain.GetProjectOr404(ctx, conn, r.PathValue("project"))
 		if err != nil {
@@ -123,21 +126,45 @@ func (app *App) forkProject(w http.ResponseWriter, r *http.Request) error {
 			facts[id] = description
 		}
 		rows.Close()
-		hintRows, err := conn.QueryContext(ctx, "SELECT content, creator FROM hints WHERE project_id = ? ORDER BY created_at", source.ID)
+		hintRows, err := conn.QueryContext(ctx, "SELECT id, content, creator FROM hints WHERE project_id = ? ORDER BY created_at, id", source.ID)
 		if err != nil {
 			return 0, nil, err
 		}
-		type sourceHint struct{ content, creator string }
+		type sourceHint struct{ id, content, creator string }
 		var sourceHints []sourceHint
 		for hintRows.Next() {
 			var hint sourceHint
-			if err := hintRows.Scan(&hint.content, &hint.creator); err != nil {
+			if err := hintRows.Scan(&hint.id, &hint.content, &hint.creator); err != nil {
 				hintRows.Close()
 				return 0, nil, err
 			}
 			sourceHints = append(sourceHints, hint)
 		}
 		hintRows.Close()
+		if body.HintIDs != nil {
+			known := map[string]bool{}
+			for _, hint := range sourceHints {
+				known[hint.id] = true
+			}
+			for _, id := range *body.HintIDs {
+				if !known[id] {
+					return 0, nil, &domain.ValidationError{Errors: []domain.FieldError{{
+						Type: "value_error", Loc: []any{"body", "hint_ids"}, Msg: "Unknown hint id " + id, Input: id,
+					}}}
+				}
+			}
+			selected := map[string]bool{}
+			for _, id := range *body.HintIDs {
+				selected[id] = true
+			}
+			kept := make([]sourceHint, 0, len(sourceHints))
+			for _, hint := range sourceHints {
+				if selected[hint.id] {
+					kept = append(kept, hint)
+				}
+			}
+			sourceHints = kept
+		}
 
 		projectID, err := domain.NextProjectID(ctx, conn)
 		if err != nil {

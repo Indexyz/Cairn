@@ -400,9 +400,10 @@ func (request *CreateProjectRequest) BootstrapValue() bool {
 	return request.BootstrapEnabled == nil || *request.BootstrapEnabled
 }
 
-// ForkProjectRequest optionally renames the fork.
+// ForkProjectRequest optionally renames the fork and picks which hints to copy.
 type ForkProjectRequest struct {
-	Title *string `json:"title"`
+	Title   *string   `json:"title"`
+	HintIDs *[]string `json:"hint_ids"`
 }
 
 // NormalizeTitle trims and drops blank titles.
@@ -416,6 +417,26 @@ func (request *ForkProjectRequest) NormalizeTitle() {
 		return
 	}
 	request.Title = &text
+}
+
+// ValidateHintIDs trims ids and rejects blanks and duplicates. A nil list copies every hint.
+func (request *ForkProjectRequest) ValidateHintIDs() *ValidationError {
+	if request.HintIDs == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	for index, id := range *request.HintIDs {
+		text := strings.TrimSpace(id)
+		if text == "" {
+			return fieldError(fmt.Sprintf("hint_ids.%d", index), "Input should not be blank", id)
+		}
+		if seen[text] {
+			return fieldError("hint_ids", "hint_ids must be unique", text)
+		}
+		seen[text] = true
+		(*request.HintIDs)[index] = text
+	}
+	return nil
 }
 
 // CreateHintRequest adds a hint.

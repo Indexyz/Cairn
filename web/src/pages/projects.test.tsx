@@ -89,3 +89,64 @@ test("projects without a schedule stay flat", async () => {
   expect(document.body.textContent).toContain("proj_001");
   expect(document.body.textContent).not.toContain("runs");
 });
+
+function detail(hints: unknown[]) {
+  return {
+    project: project("proj_001", "manual", null),
+    facts: [
+      { id: "origin", description: "start" },
+      { id: "goal", description: "finish" },
+    ],
+    intents: [],
+    hints,
+  };
+}
+
+test("forking lets you pick which hints to copy", async () => {
+  const bodies: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/schedules")) return json([]);
+      if (url.endsWith("/projects")) return json([project("proj_001", "manual", null)]);
+      if (url.endsWith("/projects/proj_001/fork")) {
+        bodies.push(String(init?.body ?? ""));
+        return json(detail([]));
+      }
+      if (url.endsWith("/projects/proj_001")) {
+        return json(
+          detail([
+            { id: "h001", content: "keep clue", creator: "human", created_at: "2026-01-01T00:00:00Z" },
+            { id: "h002", content: "drop clue", creator: "human", created_at: "2026-01-02T00:00:00Z" },
+          ]),
+        );
+      }
+      return json({});
+    }),
+  );
+
+  mount();
+
+  await vi.waitFor(() => expect(document.body.textContent).toContain("manual"), { timeout: 5000 });
+  const fork = [...document.querySelectorAll("button")].find(
+    (button) => button.getAttribute("title") === "Fork",
+  );
+  expect(fork).toBeTruthy();
+  fork!.click();
+
+  await vi.waitFor(() => expect(document.body.textContent).toContain("keep clue"), { timeout: 5000 });
+  const checkboxes = [...document.querySelectorAll<HTMLInputElement>('[role="dialog"] input[type="checkbox"]')];
+  expect(checkboxes.map((box) => box.checked)).toEqual([true, true]);
+
+  checkboxes[1].click();
+  await vi.waitFor(() => expect(checkboxes[1].checked).toBe(false));
+
+  const confirm = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
+    (button) => button.textContent?.trim() === "Fork",
+  );
+  confirm!.click();
+
+  await vi.waitFor(() => expect(bodies.length).toBe(1), { timeout: 5000 });
+  expect(JSON.parse(bodies[0])).toEqual({ title: "manual (fork)", hint_ids: ["h001"] });
+});

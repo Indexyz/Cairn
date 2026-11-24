@@ -370,6 +370,55 @@ func TestForkCopiesOriginGoalAndHints(t *testing.T) {
 	}
 }
 
+func TestForkCopiesOnlySelectedHints(t *testing.T) {
+	harness := newTestApp(t)
+	projectID := harness.createProject(t)
+	_, created := harness.json(t, http.MethodPost, "/projects/"+projectID+"/hints", map[string]any{"content": "second clue", "creator": "human"})
+	second := created["id"].(string)
+
+	status, forked := harness.json(t, http.MethodPost, "/projects/"+projectID+"/fork", map[string]any{"hint_ids": []string{second}})
+	if status != http.StatusCreated {
+		t.Fatalf("status = %d %v", status, forked)
+	}
+	hints := forked["hints"].([]any)
+	if len(hints) != 1 || hints[0].(map[string]any)["content"] != "second clue" {
+		t.Fatalf("hints = %v", hints)
+	}
+
+	_, source := harness.json(t, http.MethodGet, "/projects/"+projectID, nil)
+	if len(source["hints"].([]any)) != 2 {
+		t.Fatalf("source hints = %v", source["hints"])
+	}
+}
+
+func TestForkWithEmptyHintListCopiesNoHints(t *testing.T) {
+	harness := newTestApp(t)
+	projectID := harness.createProject(t)
+
+	status, forked := harness.json(t, http.MethodPost, "/projects/"+projectID+"/fork", map[string]any{"hint_ids": []string{}})
+	if status != http.StatusCreated {
+		t.Fatalf("status = %d", status)
+	}
+	if hints := forked["hints"].([]any); len(hints) != 0 {
+		t.Fatalf("hints = %v", hints)
+	}
+}
+
+func TestForkRejectsUnknownAndDuplicateHintIDs(t *testing.T) {
+	harness := newTestApp(t)
+	projectID := harness.createProject(t)
+
+	for _, body := range []map[string]any{
+		{"hint_ids": []string{"h999"}},
+		{"hint_ids": []string{"h001", "h001"}},
+		{"hint_ids": []string{"  "}},
+	} {
+		if status, payload := harness.json(t, http.MethodPost, "/projects/"+projectID+"/fork", body); status != http.StatusUnprocessableEntity {
+			t.Fatalf("body=%v status=%d payload=%v", body, status, payload)
+		}
+	}
+}
+
 func TestForkAcceptsTitleAndEmptyBody(t *testing.T) {
 	harness := newTestApp(t)
 	projectID := harness.createProject(t)
