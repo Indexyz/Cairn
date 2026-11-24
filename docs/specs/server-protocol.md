@@ -243,9 +243,14 @@ env           # 环境变量对象，字符串键值；容器模式下必须包�
 ```json
 {
   "intent_timeout": 5,
-  "reason_timeout": 5
+  "reason_timeout": 5,
+  "max_workers": 8,
+  "max_running_projects": 3,
+  "max_project_workers": 4
 }
 ```
+
+并发上限取值为 `0` 表示沿用 dispatcher 的 `dispatch.yaml`；非 0 时服务端值优先，dispatcher 在下一个调度周期生效。
 
 ---
 
@@ -261,6 +266,8 @@ Body：
   "reason_timeout": 5
 }
 ```
+
+`max_project_workers` 大于 `max_workers`（且两者均非 0）时返回 `422`。
 
 ---
 

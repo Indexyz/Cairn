@@ -36,19 +36,33 @@ func fieldError(field, msg string, input any) *ValidationError {
 	}}}
 }
 
-// Settings are the shared lease timeouts.
+// Settings are the shared lease timeouts and scheduling caps.
 type Settings struct {
-	IntentTimeout int `json:"intent_timeout"`
-	ReasonTimeout int `json:"reason_timeout"`
+	IntentTimeout      int `json:"intent_timeout"`
+	ReasonTimeout      int `json:"reason_timeout"`
+	MaxWorkers         int `json:"max_workers"`
+	MaxRunningProjects int `json:"max_running_projects"`
+	MaxProjectWorkers  int `json:"max_project_workers"`
 }
 
-// Validate enforces the five-second floor.
+// Validate enforces the five-second floor and the scheduling caps.
 func (settings *Settings) Validate() *ValidationError {
 	if settings.IntentTimeout < 5 {
 		return fieldError("intent_timeout", "Input should be greater than or equal to 5", settings.IntentTimeout)
 	}
 	if settings.ReasonTimeout < 5 {
 		return fieldError("reason_timeout", "Input should be greater than or equal to 5", settings.ReasonTimeout)
+	}
+	for _, cap := range []struct {
+		name  string
+		value int
+	}{{"max_workers", settings.MaxWorkers}, {"max_running_projects", settings.MaxRunningProjects}, {"max_project_workers", settings.MaxProjectWorkers}} {
+		if cap.value < 0 {
+			return fieldError(cap.name, "Input should be greater than or equal to 0", cap.value)
+		}
+	}
+	if settings.MaxWorkers > 0 && settings.MaxProjectWorkers > settings.MaxWorkers {
+		return fieldError("max_project_workers", "Input should be less than or equal to max_workers", settings.MaxProjectWorkers)
 	}
 	return nil
 }

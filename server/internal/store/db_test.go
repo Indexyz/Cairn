@@ -116,6 +116,54 @@ func TestOpenMapsDisabledBootstrapModeToFalse(t *testing.T) {
 	}
 }
 
+func TestOpenAddsCapColumnsToLegacySettingsTable(t *testing.T) {
+	path := legacy(t,
+		`CREATE TABLE settings (intent_timeout INTEGER NOT NULL DEFAULT 15, reason_timeout INTEGER NOT NULL DEFAULT 15)`,
+		`INSERT INTO settings (rowid, intent_timeout, reason_timeout) VALUES (1, 15, 15)`,
+	)
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer db.Close()
+	if err := db.WithTx(context.Background(), func(conn *sql.Conn) error {
+		rows, err := conn.QueryContext(context.Background(), "PRAGMA table_info(settings)")
+		if err != nil {
+			return err
+		}
+		columns := map[string]bool{}
+		for rows.Next() {
+			var cid, notNull, pk int
+			var name, columnType string
+			var defaultValue sql.NullString
+			if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk); err != nil {
+				rows.Close()
+				return err
+			}
+			columns[name] = true
+		}
+		rows.Close()
+		for _, column := range []string{"max_workers", "max_running_projects", "max_project_workers"} {
+			if !columns[column] {
+				t.Fatalf("missing column %s (got %v)", column, columns)
+			}
+		}
+		var workers, projects, projectWorkers, intentTimeout int
+		if err := conn.QueryRowContext(context.Background(),
+			"SELECT max_workers, max_running_projects, max_project_workers, intent_timeout FROM settings WHERE rowid = 1").
+			Scan(&workers, &projects, &projectWorkers, &intentTimeout); err != nil {
+			return err
+		}
+		if workers != 0 || projects != 0 || projectWorkers != 0 || intentTimeout != 15 {
+			t.Fatalf("row = %d/%d/%d/%d", workers, projects, projectWorkers, intentTimeout)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+}
+
 func TestOpenAddsMaxStepsToLegacyProjectsTable(t *testing.T) {
 	path := legacy(t,
 		`CREATE TABLE projects (id TEXT PRIMARY KEY, title TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active',

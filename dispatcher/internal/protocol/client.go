@@ -92,10 +92,13 @@ type ProjectDetail struct {
 	Hints   []Hint      `json:"hints"`
 }
 
-// Settings are the server-side lease timeouts.
+// Settings are the server-side lease timeouts and scheduling caps.
 type Settings struct {
-	IntentTimeout int `json:"intent_timeout"`
-	ReasonTimeout int `json:"reason_timeout"`
+	IntentTimeout      int `json:"intent_timeout"`
+	ReasonTimeout      int `json:"reason_timeout"`
+	MaxWorkers         int `json:"max_workers"`
+	MaxRunningProjects int `json:"max_running_projects"`
+	MaxProjectWorkers  int `json:"max_project_workers"`
 }
 
 // LoadSnapshot is the global lease load.

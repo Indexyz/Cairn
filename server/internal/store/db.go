@@ -29,7 +29,10 @@ type DB struct {
 var schema = []string{
 	`CREATE TABLE IF NOT EXISTS settings (
 		intent_timeout INTEGER NOT NULL DEFAULT 15,
-		reason_timeout INTEGER NOT NULL DEFAULT 15
+		reason_timeout INTEGER NOT NULL DEFAULT 15,
+		max_workers INTEGER NOT NULL DEFAULT 0,
+		max_running_projects INTEGER NOT NULL DEFAULT 0,
+		max_project_workers INTEGER NOT NULL DEFAULT 0
 	)`,
 	`INSERT OR IGNORE INTO settings (rowid, intent_timeout, reason_timeout) VALUES (1, 15, 15)`,
 	`CREATE TABLE IF NOT EXISTS projects (
@@ -196,6 +199,30 @@ func (db *DB) migrate(ctx context.Context) error {
 		}
 		if !columns["schedule_id"] {
 			if _, err := conn.ExecContext(ctx, "ALTER TABLE projects ADD COLUMN schedule_id TEXT REFERENCES schedules(id) ON DELETE SET NULL"); err != nil {
+				return err
+			}
+		}
+		settingsColumns := map[string]bool{}
+		settingsRows, err := conn.QueryContext(ctx, "PRAGMA table_info(settings)")
+		if err != nil {
+			return err
+		}
+		for settingsRows.Next() {
+			var cid, notNull, pk int
+			var name, columnType string
+			var defaultValue sql.NullString
+			if err := settingsRows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk); err != nil {
+				settingsRows.Close()
+				return err
+			}
+			settingsColumns[name] = true
+		}
+		settingsRows.Close()
+		for _, column := range []string{"max_workers", "max_running_projects", "max_project_workers"} {
+			if settingsColumns[column] {
+				continue
+			}
+			if _, err := conn.ExecContext(ctx, "ALTER TABLE settings ADD COLUMN "+column+" INTEGER NOT NULL DEFAULT 0"); err != nil {
 				return err
 			}
 		}

@@ -270,7 +270,7 @@ in
       maxWorkers = mkOption {
         type = types.ints.positive;
         default = 8;
-        description = "Global cap on concurrently running tasks.";
+        description = "Global cap on concurrently running tasks. Overridden by the non-zero server setting.";
       };
 
       maxRunningProjects = mkOption {
@@ -282,7 +282,7 @@ in
       maxProjectWorkers = mkOption {
         type = types.ints.positive;
         default = 4;
-        description = "Per-project cap on concurrently running tasks.";
+        description = "Per-project cap on concurrently running tasks. Overridden by the non-zero server setting.";
       };
 
       healthcheckTimeout = mkOption {

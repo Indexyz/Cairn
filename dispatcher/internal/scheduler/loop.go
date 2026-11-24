@@ -96,6 +96,7 @@ type Loop struct {
 	workerUnhealthyUntil map[string]float64
 	workerRejectedUntil  map[string]float64
 	globalLoad           protocol.LoadSnapshot
+	serverSettings       protocol.Settings
 	logState             map[string]string
 	cleanupPending       map[string]bool
 	inactiveCleanupDone  map[string]string
@@ -190,6 +191,12 @@ func (loop *Loop) Run(once bool) error {
 		}
 		if err := loop.syncWorkers(false); err != nil {
 			log.Warnf("failed to reload worker models error=%s", err)
+		}
+		if err := loop.refreshSettings(); err != nil {
+			if !loop.settingsChecked {
+				return err
+			}
+			log.Warnf("failed to refresh server settings error=%s", err)
 		}
 		if !loop.settingsChecked {
 			if err := loop.validateServerSettings(); err != nil {
@@ -286,6 +293,45 @@ func (loop *Loop) globalLoadSnapshot() protocol.LoadSnapshot {
 	loop.mu.Lock()
 	defer loop.mu.Unlock()
 	return loop.globalLoad
+}
+
+func (loop *Loop) refreshSettings() error {
+	settings, err := loop.client.GetSettings()
+	if err != nil {
+		return err
+	}
+	loop.mu.Lock()
+	loop.serverSettings = *settings
+	loop.mu.Unlock()
+	return nil
+}
+
+func (loop *Loop) settingsSnapshot() protocol.Settings {
+	loop.mu.Lock()
+	defer loop.mu.Unlock()
+	return loop.serverSettings
+}
+
+// maxWorkers prefers the server cap over dispatch.yaml; zero means unset there.
+func (loop *Loop) maxWorkers() int {
+	if value := loop.settingsSnapshot().MaxWorkers; value > 0 {
+		return value
+	}
+	return loop.Config.Runtime.MaxWorkers
+}
+
+func (loop *Loop) maxRunningProjects() int {
+	if value := loop.settingsSnapshot().MaxRunningProjects; value > 0 {
+		return value
+	}
+	return loop.Config.Runtime.MaxRunningProjects
+}
+
+func (loop *Loop) maxProjectWorkers() int {
+	if value := loop.settingsSnapshot().MaxProjectWorkers; value > 0 {
+		return value
+	}
+	return loop.Config.Runtime.MaxProjectWorkers
 }
 
 func (loop *Loop) globalRunningTasks() int {
@@ -507,7 +553,7 @@ func (loop *Loop) dispatchAvailable(summaries []protocol.ProjectSummary) {
 		loop.logChanged("dispatch/global", logging.Info, "skip dispatch because no worker models are configured")
 		return
 	}
-	if loop.globalRunningTasks() >= loop.Config.Runtime.MaxWorkers {
+	if loop.globalRunningTasks() >= loop.maxWorkers() {
 		loop.logChanged("dispatch/global", logging.Info, "skip dispatch because max_workers reached running_tasks=%d", loop.globalRunningTasks())
 		return
 	}
@@ -537,12 +583,12 @@ func (loop *Loop) dispatchAvailable(summaries []protocol.ProjectSummary) {
 	loop.mu.Unlock()
 
 	dispatched := true
-	for dispatched && loop.globalRunningTasks() < loop.Config.Runtime.MaxWorkers {
+	for dispatched && loop.globalRunningTasks() < loop.maxWorkers() {
 		dispatched = false
 		for index := range runningProjects {
 			if loop.tryDispatchProject(&runningProjects[index]) {
 				dispatched = true
-				if loop.globalRunningTasks() >= loop.Config.Runtime.MaxWorkers {
+				if loop.globalRunningTasks() >= loop.maxWorkers() {
 					return
 				}
 			}
@@ -550,12 +596,12 @@ func (loop *Loop) dispatchAvailable(summaries []protocol.ProjectSummary) {
 		if dispatched {
 			continue
 		}
-		if loop.globalRunningProjects(runnable) >= loop.Config.Runtime.MaxRunningProjects {
+		if loop.globalRunningProjects(runnable) >= loop.maxRunningProjects() {
 			loop.logChanged("dispatch/idle-limit", logging.Info, "skip idle project dispatch because max_running_projects reached running_projects=%d", loop.globalRunningProjects(runnable))
 			return
 		}
 		for index := range idleProjects {
-			if loop.globalRunningProjects(runnable) >= loop.Config.Runtime.MaxRunningProjects {
+			if loop.globalRunningProjects(runnable) >= loop.maxRunningProjects() {
 				loop.logChanged("dispatch/idle-limit", logging.Info, "stop idle project dispatch because max_running_projects reached running_projects=%d", loop.globalRunningProjects(runnable))
 				return
 			}
@@ -600,7 +646,7 @@ func (loop *Loop) tryDispatchProject(summary *protocol.ProjectSummary) bool {
 		loop.logChanged(skipScope+":cleanup_pending", logging.Debug, "skip project=%s because container cleanup is still pending container=%s", summary.ID, containerName)
 		return false
 	}
-	if loop.projectRunningTaskCount(summary.ID) >= loop.Config.Runtime.MaxProjectWorkers {
+	if loop.projectRunningTaskCount(summary.ID) >= loop.maxProjectWorkers() {
 		loop.logChanged(skipScope+":max_project_workers", logging.Info, "skip project=%s because max_project_workers reached running_tasks=%v", summary.ID, loop.projectRunningTaskSummary(summary.ID))
 		return false
 	}
@@ -1344,10 +1390,7 @@ func (loop *Loop) clearProjectLogState(projectID string) {
 }
 
 func (loop *Loop) validateServerSettings() error {
-	settings, err := loop.client.GetSettings()
-	if err != nil {
-		return err
-	}
+	settings := loop.settingsSnapshot()
 	interval := loop.Config.Runtime.Interval
 	checks := []struct {
 		name  string
@@ -1362,6 +1405,9 @@ func (loop *Loop) validateServerSettings() error {
 			continue
 		}
 		log.Infof("server setting validated %s=%ds interval=%ds", check.name, check.value, interval)
+	}
+	if settings.MaxWorkers > 0 && settings.MaxProjectWorkers > settings.MaxWorkers {
+		return fmt.Errorf("server max_project_workers=%d must not exceed server max_workers=%d", settings.MaxProjectWorkers, settings.MaxWorkers)
 	}
 	return nil
 }

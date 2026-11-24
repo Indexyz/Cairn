@@ -11,8 +11,8 @@ import (
 func (app *App) getSettings(w http.ResponseWriter, r *http.Request) error {
 	return app.tx(w, r, func(ctx context.Context, conn *sql.Conn) (int, any, error) {
 		settings := domain.Settings{}
-		if err := conn.QueryRowContext(ctx, "SELECT intent_timeout, reason_timeout FROM settings WHERE rowid = 1").
-			Scan(&settings.IntentTimeout, &settings.ReasonTimeout); err != nil {
+		if err := conn.QueryRowContext(ctx, "SELECT intent_timeout, reason_timeout, max_workers, max_running_projects, max_project_workers FROM settings WHERE rowid = 1").
+			Scan(&settings.IntentTimeout, &settings.ReasonTimeout, &settings.MaxWorkers, &settings.MaxRunningProjects, &settings.MaxProjectWorkers); err != nil {
 			return 0, nil, err
 		}
 		return http.StatusOK, settings, nil
@@ -28,8 +28,8 @@ func (app *App) updateSettings(w http.ResponseWriter, r *http.Request) error {
 		return validation
 	}
 	return app.tx(w, r, func(ctx context.Context, conn *sql.Conn) (int, any, error) {
-		if _, err := conn.ExecContext(ctx, "UPDATE settings SET intent_timeout = ?, reason_timeout = ? WHERE rowid = 1",
-			body.IntentTimeout, body.ReasonTimeout); err != nil {
+		if _, err := conn.ExecContext(ctx, "UPDATE settings SET intent_timeout = ?, reason_timeout = ?, max_workers = ?, max_running_projects = ?, max_project_workers = ? WHERE rowid = 1",
+			body.IntentTimeout, body.ReasonTimeout, body.MaxWorkers, body.MaxRunningProjects, body.MaxProjectWorkers); err != nil {
 			return 0, nil, err
 		}
 		return http.StatusOK, body, nil

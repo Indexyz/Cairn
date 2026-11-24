@@ -586,6 +586,8 @@ if running_project_count < runtime.max_running_projects:
 - `runtime.max_project_workers`：单个项目内同时运行的任务上限，统一计入 `bootstrap`、`reason` 和 `explore`
 - `workers[].max_running`：单个 Worker 自身的并发上限；达到上限后，这个 Worker 暂时不再参与派发
 
+三个 `runtime` 并发上限都可以在服务端设置（`PUT /api/settings`）里覆盖：服务端值非 0 时优先，为 0 时回退到 `dispatch.yaml` 的值。Dispatcher 每个调度周期重新拉取一次，因此无需重启即可生效；`max_project_workers` 大于 `max_workers` 时启动校验报错。
+
 ---
 
 ## Worker 配置

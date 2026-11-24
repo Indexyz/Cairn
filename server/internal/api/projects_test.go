@@ -239,15 +239,27 @@ func TestIntentCreationRejectsGoalSourceAndMismatchedInitialWorker(t *testing.T)
 	}
 }
 
+func TestSettingsRejectCapsAboveGlobalWorkers(t *testing.T) {
+	harness := newTestApp(t)
+	body := map[string]any{"intent_timeout": 15, "reason_timeout": 15, "max_workers": 4, "max_running_projects": 2, "max_project_workers": 5}
+	if status, payload := harness.json(t, http.MethodPut, "/settings", body); status != http.StatusUnprocessableEntity || payload["detail"] == nil {
+		t.Fatalf("status=%d payload=%v", status, payload)
+	}
+	body["max_project_workers"] = 4
+	if status, _ := harness.json(t, http.MethodPut, "/settings", body); status != http.StatusOK {
+		t.Fatalf("status = %d", status)
+	}
+}
+
 func TestSettingsAndExportShareTheDatabase(t *testing.T) {
 	harness := newTestApp(t)
 	projectID := harness.createProject(t)
 
 	if status, payload := harness.json(t, http.MethodPut, "/settings",
-		map[string]any{"intent_timeout": 30, "reason_timeout": 45}); status != http.StatusOK || payload["intent_timeout"] != float64(30) {
+		map[string]any{"intent_timeout": 30, "reason_timeout": 45, "max_workers": 16, "max_running_projects": 4, "max_project_workers": 8}); status != http.StatusOK || payload["intent_timeout"] != float64(30) {
 		t.Fatalf("settings status=%d payload=%v", status, payload)
 	}
-	if _, payload := harness.json(t, http.MethodGet, "/settings", nil); payload["reason_timeout"] != float64(45) {
+	if _, payload := harness.json(t, http.MethodGet, "/settings", nil); payload["reason_timeout"] != float64(45) || payload["max_project_workers"] != float64(8) || payload["max_workers"] != float64(16) || payload["max_running_projects"] != float64(4) {
 		t.Fatalf("settings = %v", payload)
 	}
 

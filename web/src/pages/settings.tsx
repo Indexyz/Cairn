@@ -23,7 +23,13 @@ export function SettingsPage() {
   const { prefs, save } = usePrefs();
   const toast = useToast();
   const { t } = useTranslation();
-  const [server, setServer] = useState<ServerSettings>({ intent_timeout: 5, reason_timeout: 5 });
+  const [server, setServer] = useState<ServerSettings>({
+    intent_timeout: 5,
+    reason_timeout: 5,
+    max_workers: 0,
+    max_running_projects: 0,
+    max_project_workers: 0,
+  });
   const [actor, setActor] = useState(prefs.actor_name);
   const [layout, setLayout] = useState<LayoutMode>(prefs.layout_mode);
   const [saving, setSaving] = useState(false);
@@ -98,6 +104,48 @@ export function SettingsPage() {
                   value={server.reason_timeout}
                   onChange={(event) =>
                     setServer((current) => ({ ...current, reason_timeout: Number(event.target.value) }))
+                  }
+                />
+              </div>
+            </div>
+            <header className="mt-5 mb-3">
+              <h3 className="text-xs font-semibold">{t("settings.capsSection")}</h3>
+              <p className="text-xs text-muted-foreground">{t("settings.capsHint")}</p>
+            </header>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-2">
+                <Label htmlFor="max-workers">{t("settings.maxWorkers")}</Label>
+                <Input
+                  id="max-workers"
+                  type="number"
+                  min={0}
+                  value={server.max_workers}
+                  onChange={(event) =>
+                    setServer((current) => ({ ...current, max_workers: Number(event.target.value) }))
+                  }
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="max-running-projects">{t("settings.maxRunningProjects")}</Label>
+                <Input
+                  id="max-running-projects"
+                  type="number"
+                  min={0}
+                  value={server.max_running_projects}
+                  onChange={(event) =>
+                    setServer((current) => ({ ...current, max_running_projects: Number(event.target.value) }))
+                  }
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="max-project-workers">{t("settings.maxProjectWorkers")}</Label>
+                <Input
+                  id="max-project-workers"
+                  type="number"
+                  min={0}
+                  value={server.max_project_workers}
+                  onChange={(event) =>
+                    setServer((current) => ({ ...current, max_project_workers: Number(event.target.value) }))
                   }
                 />
               </div>

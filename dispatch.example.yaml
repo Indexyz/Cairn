@@ -25,6 +25,7 @@ runtime:
   # Scheduler tick interval in seconds.
   interval: 3
   # Global concurrency cap across all workers and all projects.
+  # Overridden by the server setting of the same name when that is non-zero.
   max_workers: 8
   # Maximum number of projects that may be actively scheduled at the same time.
   max_running_projects: 3

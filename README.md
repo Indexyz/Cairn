@@ -202,7 +202,7 @@ Server (`server/`, `cairn serve`) and dispatcher (`dispatcher/`, `cairn-dispatch
 
 The worker/model list lives in the server database and is edited from the **Models** page in the UI. The dispatcher hot-reloads it before every scheduling iteration, so saving takes effect on the next tick without a restart.
 
-`workers` in `dispatch.yaml` is a **seed only**: it is written into an empty database once, on dispatcher startup. After that the database wins, and entries added or removed in the UI are what the dispatcher uses. `common_env` in `dispatch.yaml` is still merged into every model's env. Concurrency caps (`runtime.max_workers`, `max_running_projects`, `max_project_workers`) and `runtime.interval` still come from the config file and need a restart.
+`workers` in `dispatch.yaml` is a **seed only**: it is written into an empty database once, on dispatcher startup. After that the database wins, and entries added or removed in the UI are what the dispatcher uses. `common_env` in `dispatch.yaml` is still merged into every model's env. `runtime.interval` still comes from the config file and needs a restart. The three concurrency caps (`max_workers`, `max_running_projects`, `max_project_workers`) are editable on the Settings page and apply on the next tick; leaving one at `0` there falls back to the `dispatch.yaml` value.
 
 An empty model list is a normal state: the dispatcher logs a warning and idles without dispatching, then resumes as soon as a model is added. You can therefore start the dispatcher first and configure models from the Models page.
 

@@ -63,6 +63,33 @@ func project(intents ...protocol.Intent) *protocol.ProjectDetail {
 	}
 }
 
+func TestServerSettingsOverrideConfigCaps(t *testing.T) {
+	loop := testLoop(t)
+	if loop.maxWorkers() != 2 || loop.maxRunningProjects() != 1 || loop.maxProjectWorkers() != 2 {
+		t.Fatalf("config caps = %d/%d/%d", loop.maxWorkers(), loop.maxRunningProjects(), loop.maxProjectWorkers())
+	}
+	loop.serverSettings = protocol.Settings{MaxWorkers: 8, MaxRunningProjects: 5, MaxProjectWorkers: 6}
+	if loop.maxWorkers() != 8 || loop.maxRunningProjects() != 5 || loop.maxProjectWorkers() != 6 {
+		t.Fatalf("server caps = %d/%d/%d", loop.maxWorkers(), loop.maxRunningProjects(), loop.maxProjectWorkers())
+	}
+	loop.serverSettings = protocol.Settings{MaxWorkers: 3}
+	if loop.maxWorkers() != 3 || loop.maxRunningProjects() != 1 || loop.maxProjectWorkers() != 2 {
+		t.Fatalf("partial server caps = %d/%d/%d", loop.maxWorkers(), loop.maxRunningProjects(), loop.maxProjectWorkers())
+	}
+}
+
+func TestValidateServerSettingsRejectsCapsAboveGlobalWorkers(t *testing.T) {
+	loop := testLoop(t)
+	loop.serverSettings = protocol.Settings{IntentTimeout: 600, ReasonTimeout: 600, MaxWorkers: 4, MaxProjectWorkers: 5}
+	if err := loop.validateServerSettings(); err == nil {
+		t.Fatal("expected cap mismatch error")
+	}
+	loop.serverSettings.MaxProjectWorkers = 4
+	if err := loop.validateServerSettings(); err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+}
+
 func TestChooseWorkerOrdersByPriorityThenRunningCount(t *testing.T) {
 	workers := []*config.WorkerConfig{
 		{Name: "busy", Priority: 0},

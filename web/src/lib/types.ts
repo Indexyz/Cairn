@@ -74,6 +74,9 @@ export interface ProjectDetail {
 export interface ServerSettings {
   intent_timeout: number;
   reason_timeout: number;
+  max_workers: number;
+  max_running_projects: number;
+  max_project_workers: number;
 }
 
 export interface ModelTestResult {
