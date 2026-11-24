@@ -1,28 +1,30 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Pencil, Plug, Plus, Search, Trash2 } from "lucide-react";
 
-import { useToast } from "@/hooks/use-toast";
-import { api } from "@/lib/api";
-import type { MCPServer, MCPTransport } from "@/lib/types";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   Dialog,
-  DialogContent,
+  DialogClose,
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogPanel,
+  DialogPopup,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Frame, FrameFooter, FramePanel } from "@/components/ui/frame";
 import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
-  SelectContent,
   SelectItem,
+  SelectPopup,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -34,6 +36,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
+import { useToast } from "@/hooks/use-toast";
+import { api } from "@/lib/api";
+import type { MCPServer, MCPTransport } from "@/lib/types";
 
 export const MCP_TRANSPORTS: MCPTransport[] = ["stdio", "http", "sse"];
 
@@ -152,16 +159,27 @@ export function useMCPPage() {
 
   function updatePair(list: "env" | "headers", id: number, patch: Partial<PairRow>) {
     setForm((current) =>
-      current ? { ...current, [list]: current[list].map((row) => (row.id === id ? { ...row, ...patch } : row)) } : current,
+      current
+        ? {
+            ...current,
+            [list]: current[list].map((row) => (row.id === id ? { ...row, ...patch } : row)),
+          }
+        : current,
     );
   }
 
   function addPair(list: "env" | "headers") {
-    setForm((current) => (current ? { ...current, [list]: [...current[list], { id: nextPairId++, key: "", value: "" }] } : current));
+    setForm((current) =>
+      current
+        ? { ...current, [list]: [...current[list], { id: nextPairId++, key: "", value: "" }] }
+        : current,
+    );
   }
 
   function removePair(list: "env" | "headers", id: number) {
-    setForm((current) => (current ? { ...current, [list]: current[list].filter((row) => row.id !== id) } : current));
+    setForm((current) =>
+      current ? { ...current, [list]: current[list].filter((row) => row.id !== id) } : current,
+    );
   }
 
   async function save() {
@@ -171,7 +189,10 @@ export function useMCPPage() {
     try {
       if (originalName === null) await api("POST", "/mcp", payload);
       else await api("PUT", `/mcp/${encodeURIComponent(originalName)}`, payload);
-      toast.show(t(originalName === null ? "mcp.toast.created" : "mcp.toast.updated"));
+      toast.show(
+        t(originalName === null ? "mcp.toast.created" : "mcp.toast.updated"),
+        "success",
+      );
       setForm(null);
       setOriginalName(null);
       await load();
@@ -186,7 +207,7 @@ export function useMCPPage() {
     if (!removal) return;
     try {
       await api("DELETE", `/mcp/${encodeURIComponent(removal.name)}`);
-      toast.show(t("mcp.toast.deleted", { name: removal.name }));
+      toast.show(t("mcp.toast.deleted", { name: removal.name }), "success");
       setRemoval(null);
       await load();
     } catch (error) {
@@ -246,180 +267,253 @@ export function MCPPage() {
   } = useMCPPage();
   const { t } = useTranslation();
 
+  const transportItems = useMemo(
+    () => MCP_TRANSPORTS.map((item) => ({ value: item, label: item })),
+    [],
+  );
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-5">
-        <div>
-          <h1 className="text-sm font-semibold">{t("mcp.title")}</h1>
-          <p className="text-xs text-muted-foreground">{t("mcp.subtitle")}</p>
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b bg-background px-6 py-4">
+        <div className="min-w-0">
+          <h1 className="font-heading text-lg font-semibold tracking-tight text-foreground">
+            {t("mcp.title")}
+          </h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t("mcp.subtitle")}</p>
         </div>
+        <Button onClick={openCreate}>
+          <Plus className="size-4" />
+          {t("mcp.newServer")}
+        </Button>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-5">
-        <div className="mx-auto w-full max-w-5xl">
-          <div className="rounded-xl border bg-card">
-            <div className="flex flex-wrap items-center gap-2 border-b p-3">
-              <div className="relative min-w-60 flex-1">
-                <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder={t("mcp.searchPlaceholder")}
-                  className="pl-8"
-                />
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {t("mcp.count", { shown: filtered.length, total: servers.length })}
-              </span>
-              <div className="flex-1" />
-              <Button size="sm" onClick={openCreate}>
-                <Plus className="size-4" />
-                {t("mcp.newServer")}
-              </Button>
-            </div>
-
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-48">{t("mcp.header.name")}</TableHead>
-                  <TableHead className="w-24">{t("mcp.header.type")}</TableHead>
-                  <TableHead>{t("mcp.header.target")}</TableHead>
-                  <TableHead className="w-20 text-right">{t("mcp.header.env")}</TableHead>
-                  <TableHead className="w-20 text-right">{t("mcp.header.headers")}</TableHead>
-                  <TableHead className="w-24 text-right">{t("mcp.header.actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="py-16 text-center text-muted-foreground">
-                      {t("mcp.empty")}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {filtered.map((server) => (
-                  <TableRow key={server.name}>
-                    <TableCell className="font-mono text-xs">
-                      <span className="rounded bg-muted px-1.5 py-0.5">{server.name}</span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{server.type}</Badge>
-                    </TableCell>
-                    <TableCell className="truncate font-mono text-xs text-muted-foreground">
-                      {server.type === "stdio" ? [server.command, ...server.args].join(" ") : server.url}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{Object.keys(server.env).length}</TableCell>
-                    <TableCell className="text-right tabular-nums">{Object.keys(server.headers).length}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon-sm" title={t("common.edit")} onClick={() => openEdit(server)}>
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-destructive hover:text-destructive"
-                          title={t("common.delete")}
-                          onClick={() => setRemoval(server)}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <div className="border-t px-3 py-2 text-xs text-muted-foreground">{t("mcp.footer")}</div>
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <InputGroup className="w-full max-w-xs">
+              <InputGroupAddon align="inline-start">
+                <Search className="size-4" />
+              </InputGroupAddon>
+              <InputGroupInput
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={t("mcp.searchPlaceholder")}
+              />
+            </InputGroup>
+            <Badge variant="outline" className="ml-auto tabular-nums">
+              {t("mcp.count", { shown: filtered.length, total: servers.length })}
+            </Badge>
           </div>
+
+          <Frame>
+            <FramePanel className="overflow-hidden p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-48">{t("mcp.header.name")}</TableHead>
+                    <TableHead className="w-24">{t("mcp.header.type")}</TableHead>
+                    <TableHead>{t("mcp.header.target")}</TableHead>
+                    <TableHead className="w-20 text-right">{t("mcp.header.env")}</TableHead>
+                    <TableHead className="w-20 text-right">{t("mcp.header.headers")}</TableHead>
+                    <TableHead className="w-24 text-right">{t("mcp.header.actions")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.length === 0 ? (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={6} className="p-0">
+                        <Empty className="py-12">
+                          <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                              <Plug />
+                            </EmptyMedia>
+                            <EmptyTitle>{t("mcp.empty")}</EmptyTitle>
+                          </EmptyHeader>
+                        </Empty>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filtered.map((server) => (
+                      <TableRow key={server.name}>
+                        <TableCell className="font-mono text-xs font-medium text-foreground">
+                          <span className="rounded-md border bg-muted/60 px-1.5 py-0.5">
+                            {server.name}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{server.type}</Badge>
+                        </TableCell>
+                        <TableCell className="max-w-md truncate font-mono text-xs text-muted-foreground">
+                          {server.type === "stdio"
+                            ? [server.command, ...server.args].join(" ")
+                            : server.url}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {Object.keys(server.env).length}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {Object.keys(server.headers).length}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1">
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    title={t("common.edit")}
+                                    aria-label={t("common.edit")}
+                                    onClick={() => openEdit(server)}
+                                  />
+                                }
+                              >
+                                <Pencil className="size-3.5" />
+                              </TooltipTrigger>
+                              <TooltipPopup>{t("common.edit")}</TooltipPopup>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    className="text-destructive-foreground hover:bg-destructive/8 hover:text-destructive-foreground"
+                                    title={t("common.delete")}
+                                    aria-label={t("common.delete")}
+                                    onClick={() => setRemoval(server)}
+                                  />
+                                }
+                              >
+                                <Trash2 className="size-3.5" />
+                              </TooltipTrigger>
+                              <TooltipPopup>{t("common.delete")}</TooltipPopup>
+                            </Tooltip>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </FramePanel>
+            <FrameFooter className="py-2.5 text-xs text-muted-foreground">
+              {t("mcp.footer")}
+            </FrameFooter>
+          </Frame>
         </div>
       </div>
 
       <Dialog open={!!form} onOpenChange={(open) => !open && setForm(null)}>
-        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+        <DialogPopup className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{t(originalName ? "mcp.form.editTitle" : "mcp.form.newTitle")}</DialogTitle>
+            <DialogTitle>
+              {t(originalName ? "mcp.form.editTitle" : "mcp.form.newTitle")}
+            </DialogTitle>
             <DialogDescription>{t("mcp.form.description")}</DialogDescription>
           </DialogHeader>
 
           {form && (
-            <div className="grid gap-4">
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="mcp-name">{t("mcp.form.name")}</Label>
+            <DialogPanel className="grid gap-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="mcp-name">{t("mcp.form.name")}</FieldLabel>
                   <Input
                     id="mcp-name"
                     value={form.name}
                     placeholder="filesystem"
-                    onChange={(event) => setForm((current) => (current ? { ...current, name: event.target.value } : current))}
+                    aria-invalid={
+                      form.name.trim() !== "" && !NAME_PATTERN.test(form.name.trim())
+                    }
+                    onChange={(event) =>
+                      setForm((current) =>
+                        current ? { ...current, name: event.target.value } : current,
+                      )
+                    }
                   />
                   {form.name.trim() !== "" && !NAME_PATTERN.test(form.name.trim()) && (
-                    <p className="text-[11px] text-destructive">{t("mcp.form.nameHint")}</p>
+                    <p className="text-xs text-destructive-foreground">{t("mcp.form.nameHint")}</p>
                   )}
-                </div>
-                <div className="grid gap-2">
-                  <Label>{t("mcp.form.type")}</Label>
+                </Field>
+                <Field>
+                  <FieldLabel>{t("mcp.form.type")}</FieldLabel>
                   <Select
+                    items={transportItems}
                     value={form.type}
-                    onValueChange={(value) =>
-                      setForm((current) => (current ? { ...current, type: value as MCPTransport } : current))
-                    }
+                    onValueChange={(value) => {
+                      if (!value) return;
+                      setForm((current) =>
+                        current ? { ...current, type: value as MCPTransport } : current,
+                      );
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      {MCP_TRANSPORTS.map((item) => (
-                        <SelectItem key={item} value={item}>
-                          {item}
+                    <SelectPopup>
+                      {transportItems.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
                         </SelectItem>
                       ))}
-                    </SelectContent>
+                    </SelectPopup>
                   </Select>
-                </div>
+                </Field>
               </div>
 
               {form.type === "stdio" ? (
                 <>
-                  <div className="grid gap-2">
-                    <Label htmlFor="mcp-command">{t("mcp.form.command")}</Label>
+                  <Field>
+                    <FieldLabel htmlFor="mcp-command">{t("mcp.form.command")}</FieldLabel>
                     <Input
                       id="mcp-command"
                       value={form.command}
                       placeholder="npx"
                       onChange={(event) =>
-                        setForm((current) => (current ? { ...current, command: event.target.value } : current))
+                        setForm((current) =>
+                          current ? { ...current, command: event.target.value } : current,
+                        )
                       }
                     />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="mcp-args">{t("mcp.form.args")}</Label>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="mcp-args">{t("mcp.form.args")}</FieldLabel>
                     <Textarea
                       id="mcp-args"
                       value={form.args}
                       placeholder={t("mcp.form.argsPlaceholder")}
                       className="min-h-20 font-mono text-xs"
-                      onChange={(event) => setForm((current) => (current ? { ...current, args: event.target.value } : current))}
+                      onChange={(event) =>
+                        setForm((current) =>
+                          current ? { ...current, args: event.target.value } : current,
+                        )
+                      }
                     />
-                  </div>
+                  </Field>
                 </>
               ) : (
-                <div className="grid gap-2">
-                  <Label htmlFor="mcp-url">{t("mcp.form.url")}</Label>
+                <Field>
+                  <FieldLabel htmlFor="mcp-url">{t("mcp.form.url")}</FieldLabel>
                   <Input
                     id="mcp-url"
                     value={form.url}
                     placeholder="https://mcp.example.com/sse"
-                    onChange={(event) => setForm((current) => (current ? { ...current, url: event.target.value } : current))}
+                    onChange={(event) =>
+                      setForm((current) =>
+                        current ? { ...current, url: event.target.value } : current,
+                      )
+                    }
                   />
-                </div>
+                </Field>
               )}
 
               <div className="grid gap-2">
                 <div className="flex items-center justify-between">
                   <Label>{t("mcp.form.env")}</Label>
-                  <Button variant="link" size="sm" onClick={() => addPair("env")}>
-                    + {t("common.add")}
+                  <Button variant="ghost" size="xs" onClick={() => addPair("env")}>
+                    <Plus className="size-3.5" />
+                    {t("common.add")}
                   </Button>
                 </div>
                 {form.env.map((row) => (
@@ -434,9 +528,16 @@ export function MCPPage() {
                       value={row.value}
                       placeholder={t("mcp.form.valuePlaceholder")}
                       className="font-mono text-xs"
-                      onChange={(event) => updatePair("env", row.id, { value: event.target.value })}
+                      onChange={(event) =>
+                        updatePair("env", row.id, { value: event.target.value })
+                      }
                     />
-                    <Button variant="ghost" size="icon-sm" onClick={() => removePair("env", row.id)}>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t("common.remove")}
+                      onClick={() => removePair("env", row.id)}
+                    >
                       <Trash2 className="size-3.5" />
                     </Button>
                   </div>
@@ -447,8 +548,9 @@ export function MCPPage() {
                 <div className="grid gap-2">
                   <div className="flex items-center justify-between">
                     <Label>{t("mcp.form.headers")}</Label>
-                    <Button variant="link" size="sm" onClick={() => addPair("headers")}>
-                      + {t("common.add")}
+                    <Button variant="ghost" size="xs" onClick={() => addPair("headers")}>
+                      <Plus className="size-3.5" />
+                      {t("common.add")}
                     </Button>
                   </div>
                   {form.headers.map((row) => (
@@ -457,33 +559,42 @@ export function MCPPage() {
                         value={row.key}
                         placeholder={t("mcp.form.keyPlaceholder")}
                         className="font-mono text-xs"
-                        onChange={(event) => updatePair("headers", row.id, { key: event.target.value })}
+                        onChange={(event) =>
+                          updatePair("headers", row.id, { key: event.target.value })
+                        }
                       />
                       <Input
                         value={row.value}
                         placeholder={t("mcp.form.valuePlaceholder")}
                         className="font-mono text-xs"
-                        onChange={(event) => updatePair("headers", row.id, { value: event.target.value })}
+                        onChange={(event) =>
+                          updatePair("headers", row.id, { value: event.target.value })
+                        }
                       />
-                      <Button variant="ghost" size="icon-sm" onClick={() => removePair("headers", row.id)}>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t("common.remove")}
+                        onClick={() => removePair("headers", row.id)}
+                      >
                         <Trash2 className="size-3.5" />
                       </Button>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+            </DialogPanel>
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setForm(null)} disabled={saving}>
+            <DialogClose render={<Button variant="outline" />} disabled={saving}>
               {t("common.cancel")}
-            </Button>
-            <Button onClick={() => void save()} disabled={!valid || saving}>
+            </DialogClose>
+            <Button onClick={() => void save()} disabled={!valid || saving} loading={saving}>
               {saving ? t("common.saving") : t("common.save")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </DialogPopup>
       </Dialog>
 
       <ConfirmDialog

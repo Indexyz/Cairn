@@ -28,6 +28,7 @@ interface Options {
   resetKey: number;
   project: ProjectDetail | null;
   layoutMode: LayoutMode;
+  theme?: "light" | "dark";
   selectedNode: Selection | null;
   selectedFacts: string[];
   onNodeTap: (node: NodeSingular, shiftKey: boolean) => void;
@@ -36,10 +37,11 @@ interface Options {
 }
 
 export function useCytoscape(options: Options) {
-  const { containerRef, project, layoutMode, selectedNode, selectedFacts, resetKey } = options;
+  const { containerRef, project, layoutMode, theme = "light", selectedNode, selectedFacts, resetKey } = options;
   const cyRef = useRef<Core | null>(null);
   const handlers = useRef(options);
   const layoutRef = useRef<LayoutMode>(layoutMode);
+  const themeRef = useRef<"light" | "dark">(theme);
 
   // Written in effects rather than during render: React may replay or drop render work.
   useEffect(() => {
@@ -48,6 +50,11 @@ export function useCytoscape(options: Options) {
   useEffect(() => {
     layoutRef.current = layoutMode;
   }, [layoutMode]);
+  useEffect(() => {
+    themeRef.current = theme;
+    const cy = cyRef.current;
+    if (cy) cy.style(graphStyles(theme));
+  }, [theme]);
 
   const positionsKey = useRef<ProjectDetail | null>(null);
   const signatureRef = useRef<string | null>(null);
@@ -61,7 +68,7 @@ export function useCytoscape(options: Options) {
     const instance = cytoscape({
       container,
       elements: [],
-      style: graphStyles(),
+      style: graphStyles(themeRef.current),
       layout: layoutOpts(layoutRef.current),
       minZoom: 0.15,
       maxZoom: 3.5,

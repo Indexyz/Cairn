@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -12,23 +13,25 @@ import {
   Trash2,
 } from "lucide-react";
 
-import type { ProjectDetail, ProjectStatus } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Select,
-  SelectContent,
   SelectItem,
+  SelectPopup,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
+import type { ProjectDetail, ProjectStatus } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
-const STATUS_BADGE: Record<ProjectStatus, "running" | "paused" | "blocked" | "done"> = {
-  active: "running",
-  stopped: "paused",
-  blocked: "blocked",
-  completed: "done",
+const STATUS_BADGE: Record<ProjectStatus, "info" | "warning" | "error" | "success"> = {
+  active: "info",
+  stopped: "warning",
+  blocked: "error",
+  completed: "success",
 };
 
 const REPLAY_SPEEDS = [
@@ -39,7 +42,13 @@ const REPLAY_SPEEDS = [
 
 export interface ProjectHeaderProps {
   project: ProjectDetail;
-  replay: { active: boolean; playing: boolean; stepMs: string; frameIndex: number; frames: unknown[] };
+  replay: {
+    active: boolean;
+    playing: boolean;
+    stepMs: string;
+    frameIndex: number;
+    frames: unknown[];
+  };
   onRename: () => void;
   onEditMaxSteps: () => void;
   onStartReplay: () => void;
@@ -74,63 +83,124 @@ export function ProjectHeader({
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3">
-      <Button variant="ghost" size="icon-sm" asChild>
-        <Link to="/" title={t("project.back")}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("project.back")}
+              render={<Link to="/" title={t("project.back")} />}
+            />
+          }
+        >
           <ChevronLeft className="size-4" />
-        </Link>
-      </Button>
-      <span className="font-mono text-[11px] text-muted-foreground">{project.project.id}</span>
-      <h1 className="max-w-80 truncate text-sm font-semibold">{project.project.title}</h1>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        title={t("project.dialogs.rename.title")}
-        onClick={onRename}
-        disabled={replay.active}
-      >
-        <Pencil className="size-3.5" />
-      </Button>
-      <Badge variant={STATUS_BADGE[status]}>{t(`common.status.${status}`)}</Badge>
-      <span className="ml-2 text-xs text-muted-foreground">
+        </TooltipTrigger>
+        <TooltipPopup>{t("project.back")}</TooltipPopup>
+      </Tooltip>
+
+      <span className="font-mono text-xs text-muted-foreground">{project.project.id}</span>
+      <h1 className="max-w-72 truncate font-heading text-sm font-semibold tracking-tight text-foreground">
+        {project.project.title}
+      </h1>
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              title={t("project.dialogs.rename.title")}
+              aria-label={t("project.dialogs.rename.title")}
+              onClick={onRename}
+              disabled={replay.active}
+            />
+          }
+        >
+          <Pencil className="size-3.5" />
+        </TooltipTrigger>
+        <TooltipPopup>{t("project.dialogs.rename.title")}</TooltipPopup>
+      </Tooltip>
+
+      <Badge variant={STATUS_BADGE[status]}>
+        <span
+          aria-hidden="true"
+          className={cn(
+            "size-1.5 rounded-full bg-current",
+            status === "active" && "pulse-soft",
+          )}
+        />
+        {t(`common.status.${status}`)}
+      </Badge>
+
+      <Separator orientation="vertical" className="mx-1 h-4" />
+
+      <span className="text-xs tabular-nums text-muted-foreground">
         {t("project.facts", { count: project.facts.length })} ·{" "}
         {t("project.intents", { count: project.intents.length })}
       </span>
+
       {status !== "completed" && !replay.active && (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          title={t("project.maxSteps.edit")}
-          onClick={onEditMaxSteps}
-        >
-          <Gauge className="size-3.5" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title={t("project.maxSteps.edit")}
+                aria-label={t("project.maxSteps.edit")}
+                onClick={onEditMaxSteps}
+              />
+            }
+          >
+            <Gauge className="size-3.5" />
+          </TooltipTrigger>
+          <TooltipPopup>{t("project.maxSteps.edit")}</TooltipPopup>
+        </Tooltip>
       )}
+
       {maxSteps !== null && (
         <span
           className={cn(
             "text-xs tabular-nums",
             project.intents.length >= maxSteps
-              ? "font-medium text-rose-600"
+              ? "font-medium text-destructive-foreground"
               : "text-muted-foreground",
           )}
         >
           {t("project.maxSteps.progress", { count: project.intents.length, max: maxSteps })}
         </span>
       )}
+
       {status === "blocked" && (
-        <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] text-rose-700">
+        <Badge variant="error" size="sm">
           {t("project.maxSteps.blocked")}
-        </span>
+        </Badge>
       )}
+
       <div className="flex-1" />
 
-      <ReplayControls replay={replay} onStart={onStartReplay} onToggle={onToggleReplay} onRestart={onRestartReplay} onSpeed={onSpeedChange} onExit={onExitReplay} />
+      <ReplayControls
+        replay={replay}
+        onStart={onStartReplay}
+        onToggle={onToggleReplay}
+        onRestart={onRestartReplay}
+        onSpeed={onSpeedChange}
+        onExit={onExitReplay}
+      />
 
       <Button variant="outline" size="sm" onClick={onSnapshot}>
         <FileCode2 className="size-3.5" />
         {t("project.snapshot")}
       </Button>
-      <StatusActions status={status} replayActive={replay.active} onToggleStatus={onToggleStatus} onReopen={onReopen} onDelete={onDelete} />
+
+      <StatusActions
+        status={status}
+        replayActive={replay.active}
+        onToggleStatus={onToggleStatus}
+        onReopen={onReopen}
+        onDelete={onDelete}
+      />
     </header>
   );
 }
@@ -152,6 +222,11 @@ function ReplayControls({
 }) {
   const { t } = useTranslation();
 
+  const speedItems = useMemo(
+    () => REPLAY_SPEEDS.map((speed) => ({ value: speed.value, label: t(speed.key) })),
+    [t],
+  );
+
   if (!replay.active) {
     return (
       <Button variant="outline" size="sm" onClick={onStart}>
@@ -162,37 +237,68 @@ function ReplayControls({
   }
 
   return (
-    <div className="flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1 text-xs text-violet-700">
-      <span className="font-medium">
+    <div className="flex items-center gap-1 rounded-lg border border-info/25 bg-info/8 px-2 py-0.5 text-xs text-info-foreground dark:bg-info/16">
+      <span className="px-1 font-medium tabular-nums">
         {t("project.replay.label", {
           current: Math.min(replay.frameIndex + 1, replay.frames.length),
           total: replay.frames.length,
         })}
       </span>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        title={t(replay.playing ? "project.replay.pause" : "project.replay.resume")}
-        onClick={onToggle}
-      >
-        {replay.playing ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
-      </Button>
-      <Button variant="ghost" size="icon-sm" title={t("project.replay.restart")} onClick={onRestart}>
-        <RotateCcw className="size-3.5" />
-      </Button>
-      <Select value={replay.stepMs} onValueChange={onSpeed}>
-        <SelectTrigger className="h-6 w-24 border-violet-200 bg-white text-[11px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {REPLAY_SPEEDS.map((speed) => (
-            <SelectItem key={speed.value} value={speed.value}>
-              {t(speed.key)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Button variant="ghost" size="sm" onClick={onExit}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              title={t(replay.playing ? "project.replay.pause" : "project.replay.resume")}
+              aria-label={t(replay.playing ? "project.replay.pause" : "project.replay.resume")}
+              onClick={onToggle}
+            />
+          }
+        >
+          {replay.playing ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
+        </TooltipTrigger>
+        <TooltipPopup>
+          {t(replay.playing ? "project.replay.pause" : "project.replay.resume")}
+        </TooltipPopup>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              title={t("project.replay.restart")}
+              aria-label={t("project.replay.restart")}
+              onClick={onRestart}
+            />
+          }
+        >
+          <RotateCcw className="size-3.5" />
+        </TooltipTrigger>
+        <TooltipPopup>{t("project.replay.restart")}</TooltipPopup>
+      </Tooltip>
+      <div className="w-24">
+        <Select
+          items={speedItems}
+          value={replay.stepMs}
+          onValueChange={(value) => {
+            if (value) onSpeed(value);
+          }}
+        >
+          <SelectTrigger size="sm" className="min-h-6 text-xs sm:min-h-6">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectPopup>
+            {speedItems.map((speed) => (
+              <SelectItem key={speed.value} value={speed.value}>
+                {speed.label}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+      </div>
+      <Button variant="ghost" size="xs" onClick={onExit}>
         {t("project.replay.exit")}
       </Button>
     </div>
@@ -229,7 +335,7 @@ function StatusActions({
           {t("project.reopen")}
         </Button>
       )}
-      <Button variant="outline" size="sm" className="text-destructive" onClick={onDelete}>
+      <Button variant="destructive-outline" size="sm" onClick={onDelete}>
         <Trash2 className="size-3.5" />
         {t("common.delete")}
       </Button>

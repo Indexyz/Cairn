@@ -1,36 +1,33 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FlaskConical, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Bell, FlaskConical, Pencil, Plus, Trash2 } from "lucide-react";
 
-import { useToast } from "@/hooks/use-toast";
-import { api } from "@/lib/api";
-import type {
-  NotificationChannel,
-  NotificationChannelPayload,
-  NotificationEvent,
-  NotificationKind,
-  NotificationTestResult,
-} from "@/lib/types";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   Dialog,
-  DialogContent,
+  DialogClose,
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogPanel,
+  DialogPopup,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Frame, FrameFooter, FramePanel } from "@/components/ui/frame";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
-  SelectContent,
   SelectItem,
+  SelectPopup,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import {
   Table,
@@ -40,6 +37,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
+import { useToast } from "@/hooks/use-toast";
+import { api } from "@/lib/api";
+import type {
+  NotificationChannel,
+  NotificationChannelPayload,
+  NotificationEvent,
+  NotificationKind,
+  NotificationTestResult,
+} from "@/lib/types";
 
 const KINDS: NotificationKind[] = ["discord", "telegram", "webhook"];
 const EVENTS: NotificationEvent[] = [
@@ -91,8 +98,8 @@ function toForm(channel: NotificationChannel): ChannelForm {
   };
 }
 
-
-export function useNotificationsPage() {  const toast = useToast();
+export function useNotificationsPage() {
+  const toast = useToast();
   const { t } = useTranslation();
   const [channels, setChannels] = useState<NotificationChannel[]>([]);
   const [form, setForm] = useState<ChannelForm | null>(null);
@@ -130,9 +137,12 @@ export function useNotificationsPage() {  const toast = useToast();
     );
     try {
       await api("PUT", `/notifications/${channel.id}`, { ...channel, enabled });
-      toast.show(t(enabled ? "notifications.toast.enabled" : "notifications.toast.disabled", {
-        name: channel.name,
-      }));
+      toast.show(
+        t(enabled ? "notifications.toast.enabled" : "notifications.toast.disabled", {
+          name: channel.name,
+        }),
+        "success",
+      );
     } catch (error) {
       toast.show((error as Error).message, "error");
       await load();
@@ -155,7 +165,10 @@ export function useNotificationsPage() {  const toast = useToast();
       setForm(null);
       setEditing(null);
       await load();
-      toast.show(t(editing ? "notifications.toast.updated" : "notifications.toast.created"));
+      toast.show(
+        t(editing ? "notifications.toast.updated" : "notifications.toast.created"),
+        "success",
+      );
     } catch (error) {
       toast.show((error as Error).message, "error");
     } finally {
@@ -171,7 +184,7 @@ export function useNotificationsPage() {  const toast = useToast();
         "POST",
         `/notifications/${channel.id}/test`,
       );
-      if (result.ok) toast.show(t("notifications.test.okToast", { name: channel.name }));
+      if (result.ok) toast.show(t("notifications.test.okToast", { name: channel.name }), "success");
       else
         toast.show(
           t("notifications.test.failToast", {
@@ -193,7 +206,7 @@ export function useNotificationsPage() {  const toast = useToast();
       await api("DELETE", `/notifications/${removal.id}`);
       setRemoval(null);
       await load();
-      toast.show(t("notifications.toast.deleted", { name: removal.name }));
+      toast.show(t("notifications.toast.deleted", { name: removal.name }), "success");
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -245,132 +258,167 @@ export function NotificationsPage() {
   } = useNotificationsPage();
   const { t } = useTranslation();
 
+  const kindItems = useMemo(
+    () => KINDS.map((kind) => ({ value: kind, label: t(`notifications.kinds.${kind}`) })),
+    [t],
+  );
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-5">
-        <div>
-          <h1 className="text-sm font-semibold">{t("notifications.title")}</h1>
-          <p className="text-xs text-muted-foreground">{t("notifications.subtitle")}</p>
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b bg-background px-6 py-4">
+        <div className="min-w-0">
+          <h1 className="font-heading text-lg font-semibold tracking-tight text-foreground">
+            {t("notifications.title")}
+          </h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t("notifications.subtitle")}</p>
         </div>
+        <Button onClick={openCreate}>
+          <Plus className="size-4" />
+          {t("notifications.newChannel")}
+        </Button>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-5">
-        <div className="mx-auto w-full max-w-5xl">
-          <div className="rounded-xl border bg-card">
-            <div className="flex flex-wrap items-center gap-2 border-b p-3">
-              <span className="text-xs text-muted-foreground">
-                {t("notifications.count", { count: channels.length })}
-              </span>
-              <div className="flex-1" />
-              <Button size="sm" onClick={openCreate}>
-                <Plus className="size-4" />
-                {t("notifications.newChannel")}
-              </Button>
-            </div>
-
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-56">{t("notifications.header.name")}</TableHead>
-                  <TableHead className="w-28">{t("notifications.header.kind")}</TableHead>
-                  <TableHead>{t("notifications.header.events")}</TableHead>
-                  <TableHead className="w-24">{t("notifications.header.enabled")}</TableHead>
-                  <TableHead className="w-32 text-right">{t("notifications.header.actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {channels.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-16 text-center text-muted-foreground">
-                      {t("notifications.empty")}
-                    </TableCell>
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+          <Frame>
+            <FramePanel className="overflow-hidden p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-56">{t("notifications.header.name")}</TableHead>
+                    <TableHead className="w-28">{t("notifications.header.kind")}</TableHead>
+                    <TableHead>{t("notifications.header.events")}</TableHead>
+                    <TableHead className="w-24">{t("notifications.header.enabled")}</TableHead>
+                    <TableHead className="w-32 text-right">
+                      {t("notifications.header.actions")}
+                    </TableHead>
                   </TableRow>
-                )}
-                {channels.map((channel) => (
-                  <TableRow key={channel.id}>
-                    <TableCell className="font-medium">
-                      <div className="truncate">{channel.name}</div>
-                      <div className="font-mono text-[11px] text-muted-foreground">{channel.id}</div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{channel.kind}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {channel.events.map((event) => (
-                          <span
-                            key={event}
-                            className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
-                          >
-                            {t(`notifications.events.${event}`)}
-                          </span>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={channel.enabled}
-                        onCheckedChange={(checked) => void toggle(channel, checked)}
-                        aria-label={t("notifications.header.enabled")}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          title={t("notifications.test.action")}
-                          disabled={testing !== null}
-                          onClick={() => void test(channel)}
-                        >
-                          {testing === channel.id ? (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          ) : (
-                            <FlaskConical className="size-3.5" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          title={t("common.edit")}
-                          onClick={() => openEdit(channel)}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-destructive hover:text-destructive"
-                          title={t("common.delete")}
-                          onClick={() => setRemoval(channel)}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <div className="border-t px-3 py-2 text-xs text-muted-foreground">
-              {t("notifications.footer")}
-            </div>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {channels.length === 0 ? (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={5} className="p-0">
+                        <Empty className="py-12">
+                          <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                              <Bell />
+                            </EmptyMedia>
+                            <EmptyTitle>{t("notifications.empty")}</EmptyTitle>
+                          </EmptyHeader>
+                        </Empty>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    channels.map((channel) => (
+                      <TableRow key={channel.id}>
+                        <TableCell className="font-medium">
+                          <div className="truncate text-foreground">{channel.name}</div>
+                          <div className="font-mono text-[11px] text-muted-foreground">
+                            {channel.id}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{channel.kind}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {channel.events.map((event) => (
+                              <Badge key={event} variant="outline" size="sm">
+                                {t(`notifications.events.${event}`)}
+                              </Badge>
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={channel.enabled}
+                            onCheckedChange={(checked) => void toggle(channel, checked)}
+                            aria-label={t("notifications.header.enabled")}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1">
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    title={t("notifications.test.action")}
+                                    aria-label={t("notifications.test.action")}
+                                    disabled={testing !== null}
+                                    onClick={() => void test(channel)}
+                                  />
+                                }
+                              >
+                                {testing === channel.id ? (
+                                  <Spinner className="size-3.5" />
+                                ) : (
+                                  <FlaskConical className="size-3.5" />
+                                )}
+                              </TooltipTrigger>
+                              <TooltipPopup>{t("notifications.test.action")}</TooltipPopup>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    title={t("common.edit")}
+                                    aria-label={t("common.edit")}
+                                    onClick={() => openEdit(channel)}
+                                  />
+                                }
+                              >
+                                <Pencil className="size-3.5" />
+                              </TooltipTrigger>
+                              <TooltipPopup>{t("common.edit")}</TooltipPopup>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    className="text-destructive-foreground hover:bg-destructive/8 hover:text-destructive-foreground"
+                                    title={t("common.delete")}
+                                    aria-label={t("common.delete")}
+                                    onClick={() => setRemoval(channel)}
+                                  />
+                                }
+                              >
+                                <Trash2 className="size-3.5" />
+                              </TooltipTrigger>
+                              <TooltipPopup>{t("common.delete")}</TooltipPopup>
+                            </Tooltip>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </FramePanel>
+            <FrameFooter className="py-2.5 text-xs text-muted-foreground">
+              {t("notifications.count", { count: channels.length })}
+            </FrameFooter>
+          </Frame>
         </div>
       </div>
 
       <Dialog open={!!form} onOpenChange={(open) => !open && setForm(null)}>
-        <DialogContent className="max-h-[85vh] max-w-xl overflow-y-auto">
+        <DialogPopup className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>
-              {t(form && editing ? "notifications.form.editTitle" : "notifications.form.newTitle")}
+              {t(editing ? "notifications.form.editTitle" : "notifications.form.newTitle")}
             </DialogTitle>
             <DialogDescription>{t("notifications.form.description")}</DialogDescription>
           </DialogHeader>
           {form && (
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="channel-name">{t("notifications.form.name")}</Label>
+            <DialogPanel className="grid gap-4">
+              <Field>
+                <FieldLabel htmlFor="channel-name">{t("notifications.form.name")}</FieldLabel>
                 <Input
                   id="channel-name"
                   value={form.name}
@@ -381,14 +429,16 @@ export function NotificationsPage() {
                     )
                   }
                 />
-              </div>
+              </Field>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-2">
-                  <Label>{t("notifications.form.kind")}</Label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel>{t("notifications.form.kind")}</FieldLabel>
                   <Select
+                    items={kindItems}
                     value={form.kind}
-                    onValueChange={(value) =>
+                    onValueChange={(value) => {
+                      if (!value) return;
                       setForm((current) => {
                         if (!current) return current;
                         const kind = value as NotificationKind;
@@ -399,24 +449,24 @@ export function NotificationsPage() {
                             KIND_FIELDS[kind].map((key) => [key, current.config[key] ?? ""]),
                           ),
                         };
-                      })
-                    }
+                      });
+                    }}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      {KINDS.map((kind) => (
-                        <SelectItem key={kind} value={kind}>
-                          {t(`notifications.kinds.${kind}`)}
+                    <SelectPopup>
+                      {kindItems.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
                         </SelectItem>
                       ))}
-                    </SelectContent>
+                    </SelectPopup>
                   </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="channel-enabled">{t("notifications.form.enabled")}</Label>
-                  <div className="flex h-9 items-center">
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="channel-enabled">{t("notifications.form.enabled")}</FieldLabel>
+                  <div className="flex h-8.5 items-center sm:h-8">
                     <Switch
                       id="channel-enabled"
                       checked={form.enabled}
@@ -427,13 +477,15 @@ export function NotificationsPage() {
                       }
                     />
                   </div>
-                </div>
+                </Field>
               </div>
 
-              <div className="grid gap-2">
+              <div className="grid gap-3">
                 {KIND_FIELDS[form.kind].map((key) => (
-                  <div key={key} className="grid gap-2">
-                    <Label htmlFor={`channel-${key}`}>{t(`notifications.fields.${key}`)}</Label>
+                  <Field key={key}>
+                    <FieldLabel htmlFor={`channel-${key}`}>
+                      {t(`notifications.fields.${key}`)}
+                    </FieldLabel>
                     <Input
                       id={`channel-${key}`}
                       value={form.config[key] ?? ""}
@@ -450,14 +502,14 @@ export function NotificationsPage() {
                         )
                       }
                     />
-                  </div>
+                  </Field>
                 ))}
-                <p className="text-[11px] text-muted-foreground">{t(KIND_HINTS[form.kind])}</p>
+                <p className="text-xs text-muted-foreground">{t(KIND_HINTS[form.kind])}</p>
               </div>
 
               <div className="grid gap-2">
                 <Label>{t("notifications.form.events")}</Label>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {EVENTS.map((event) => {
                     const checked = form.events.includes(event);
                     return (
@@ -466,6 +518,7 @@ export function NotificationsPage() {
                         type="button"
                         size="sm"
                         variant={checked ? "default" : "outline"}
+                        aria-pressed={checked}
                         onClick={() =>
                           setForm((current) =>
                             current
@@ -484,19 +537,17 @@ export function NotificationsPage() {
                     );
                   })}
                 </div>
-                <p className="text-[11px] text-muted-foreground">{t("notifications.form.eventsNote")}</p>
+                <p className="text-xs text-muted-foreground">{t("notifications.form.eventsNote")}</p>
               </div>
-            </div>
+            </DialogPanel>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setForm(null)}>
-              {t("common.cancel")}
-            </Button>
-            <Button onClick={save} disabled={!valid || saving}>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+            <Button onClick={save} disabled={!valid || saving} loading={saving}>
               {saving ? t("common.saving") : t("common.save")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </DialogPopup>
       </Dialog>
 
       <ConfirmDialog

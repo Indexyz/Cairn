@@ -525,6 +525,12 @@ const zh_CN: LocaleSchema = {
     zh_CN: "简体中文",
     ja: "日本語",
   },
+  theme: {
+    label: "外观",
+    system: "跟随系统",
+    light: "浅色",
+    dark: "深色",
+  },
 };
 
 export default zh_CN;

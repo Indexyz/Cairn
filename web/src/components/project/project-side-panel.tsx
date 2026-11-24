@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
 import { useTranslation } from "react-i18next";
+import { Activity, Lightbulb } from "lucide-react";
 
 import {
   EmptySelection,
@@ -8,11 +9,12 @@ import {
   IntentCard,
   MultiFactList,
 } from "@/components/project/side-panel-cards";
-
+import { TimelineRow } from "@/components/project/timeline-row";
+import { Badge } from "@/components/ui/badge";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import type { UseFormatResult } from "@/lib/format";
 import type { Intent, ProjectDetail, Selection, TimelineEvent } from "@/lib/types";
-import { cn } from "@/lib/utils";
-import { TimelineRow } from "@/components/project/timeline-row";
 
 export type SideTab = "detail" | "hints" | "log";
 
@@ -72,54 +74,66 @@ export function ProjectSidePanel({
       className="flex shrink-0 flex-col overflow-hidden border-l bg-background"
       style={{ width }}
     >
-      <div className="flex shrink-0 border-b">
-        {(["detail", "hints", "log"] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => onTab(tab)}
-            className={cn(
-              "flex-1 px-3 py-2.5 text-xs font-medium capitalize transition-colors",
-              sideTab === tab
-                ? "border-b-2 border-primary text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t(`project.tabs.${tab}`)}
-            {tab === "hints" && <span className="ml-1 opacity-60">{project.hints.length}</span>}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={sideTab}
+        onValueChange={(value) => onTab(value as SideTab)}
+        className="flex min-h-0 flex-1 flex-col gap-0"
+      >
+        <div className="shrink-0 border-b px-2">
+          <TabsList variant="underline" size="sm" className="w-full">
+            <TabsTab value="detail">{t("project.tabs.detail")}</TabsTab>
+            <TabsTab value="hints">
+              <span>{t("project.tabs.hints")}</span>
+              {project.hints.length > 0 && (
+                <Badge variant="secondary" size="sm" className="ml-1 tabular-nums">
+                  {project.hints.length}
+                </Badge>
+              )}
+            </TabsTab>
+            <TabsTab value="log">{t("project.tabs.log")}</TabsTab>
+          </TabsList>
+        </div>
 
-      <div className="flex-1 overflow-y-auto p-3">
-        {sideTab === "detail" && <DetailTab {...props} project={project} format={format} />}
+        <TabsPanel value="detail" className="flex-1 overflow-y-auto p-3">
+          <DetailTab {...props} project={project} format={format} />
+        </TabsPanel>
 
-        {sideTab === "hints" && (
+        <TabsPanel value="hints" className="flex-1 overflow-y-auto p-3">
           <div className="space-y-2">
-            {project.hints.length === 0 && (
-              <p className="py-10 text-center text-sm text-muted-foreground">{t("project.empty.hints")}</p>
+            {project.hints.length === 0 ? (
+              <Empty className="py-10">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <Lightbulb />
+                  </EmptyMedia>
+                  <EmptyTitle className="text-sm">{t("project.empty.hints")}</EmptyTitle>
+                </EmptyHeader>
+              </Empty>
+            ) : (
+              project.hints.map((hint) => (
+                <button
+                  key={hint.id}
+                  type="button"
+                  onClick={() => onHintOpen(hint.id)}
+                  className="w-full rounded-xl border bg-card p-3 text-left shadow-xs/5 transition-colors hover:bg-accent/50"
+                >
+                  <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="truncate font-medium text-foreground">{hint.creator}</span>
+                    <span className="tabular-nums">{format.time(hint.created_at)}</span>
+                  </div>
+                  <p className="text-sm break-words whitespace-pre-wrap text-foreground">
+                    {hint.content}
+                  </p>
+                </button>
+              ))
             )}
-            {project.hints.map((hint) => (
-              <button
-                key={hint.id}
-                type="button"
-                onClick={() => onHintOpen(hint.id)}
-                className="w-full rounded-xl border bg-card p-3 text-left hover:bg-muted/40"
-              >
-                <div className="mb-2 flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span className="truncate font-medium">{hint.creator}</span>
-                  <span>{format.time(hint.created_at)}</span>
-                </div>
-                <p className="text-sm break-words whitespace-pre-wrap">{hint.content}</p>
-              </button>
-            ))}
           </div>
-        )}
+        </TabsPanel>
 
-        {sideTab === "log" && (
+        <TabsPanel value="log" className="flex-1 overflow-y-auto p-3">
           <div ref={logRef} className="space-y-3">
             {selectedTimelineSummary && (
-              <div className="sticky top-0 z-10 rounded-xl border bg-background/95 p-3 shadow-sm">
+              <div className="sticky top-0 z-10 rounded-xl border bg-popover/95 p-3 shadow-sm/5 backdrop-blur-sm">
                 {(["sequence", "time"] as const).map((kind) => {
                   const percent =
                     kind === "sequence"
@@ -131,34 +145,45 @@ export function ProjectSidePanel({
                       : selectedTimelineSummary.timeLabel;
                   return (
                     <div key={kind} className="space-y-1 py-1">
-                      <div className="flex justify-between text-[11px] text-muted-foreground">
+                      <div className="flex justify-between text-xs text-muted-foreground">
                         <span className="capitalize">{t(`project.timeline.${kind}`)}</span>
                         <span className="font-mono">{label}</span>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                        <div className="h-full rounded-full bg-primary/70" style={{ width: `${percent}%` }} />
+                        <div
+                          className="h-full rounded-full bg-primary transition-[width] duration-200"
+                          style={{ width: `${percent}%` }}
+                        />
                       </div>
                     </div>
                   );
                 })}
               </div>
             )}
-            {timeline.length === 0 && (
-              <p className="py-10 text-center text-sm text-muted-foreground">{t("project.empty.activity")}</p>
+            {timeline.length === 0 ? (
+              <Empty className="py-10">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <Activity />
+                  </EmptyMedia>
+                  <EmptyTitle className="text-sm">{t("project.empty.activity")}</EmptyTitle>
+                </EmptyHeader>
+              </Empty>
+            ) : (
+              timeline.map((entry) => (
+                <TimelineRow
+                  key={entry.id}
+                  entry={entry}
+                  selected={selectedTimelineEntryId === entry.id}
+                  onOpen={onEntryOpen}
+                  time={format.time(entry.timestamp)}
+                  dateLabel={format.timelineDate(entry.timestamp)}
+                />
+              ))
             )}
-            {timeline.map((entry) => (
-              <TimelineRow
-                key={entry.id}
-                entry={entry}
-                selected={selectedTimelineEntryId === entry.id}
-                onOpen={onEntryOpen}
-                time={format.time(entry.timestamp)}
-                dateLabel={format.timelineDate(entry.timestamp)}
-              />
-            ))}
           </div>
-        )}
-      </div>
+        </TabsPanel>
+      </Tabs>
     </aside>
   );
 }
@@ -195,31 +220,31 @@ function DetailTab({
 
   return (
     <div className="space-y-3">
-            {selectedNode?.type === "group" && selectedGroup && (
-              <GroupCard group={selectedGroup} format={format} onSelectIntent={onSelectIntent} />
-            )}
-            {!selectedNode && <EmptySelection />}
-            {selectedNode?.type === "fact" && selectedFacts.length > 1 && (
-              <MultiFactList
-                project={project}
-                selectedFacts={selectedFacts}
-                onToggleFact={onToggleFact}
-              />
-            )}
-            {selectedNode?.type === "fact" && selectedFacts.length <= 1 && selectedFactRecord && (
-              <FactCard fact={selectedFactRecord} producingIntent={selectedFactIntent ?? undefined} />
-            )}
-            {selectedNode?.type === "intent" && selectedIntentRecord && (
-              <IntentCard intent={selectedIntentRecord} format={format} />
-            )}
-            {producingIntent && selectedNode?.type === "fact" && (
-              <p className="text-xs text-muted-foreground">
-                {t("project.fact.producedByLine", {
-                  intent: producingIntent.id,
-                  from: producingIntent.from.join(", "),
-                })}
-              </p>
-            )}
+      {selectedNode?.type === "group" && selectedGroup && (
+        <GroupCard group={selectedGroup} format={format} onSelectIntent={onSelectIntent} />
+      )}
+      {!selectedNode && <EmptySelection />}
+      {selectedNode?.type === "fact" && selectedFacts.length > 1 && (
+        <MultiFactList
+          project={project}
+          selectedFacts={selectedFacts}
+          onToggleFact={onToggleFact}
+        />
+      )}
+      {selectedNode?.type === "fact" && selectedFacts.length <= 1 && selectedFactRecord && (
+        <FactCard fact={selectedFactRecord} producingIntent={selectedFactIntent ?? undefined} />
+      )}
+      {selectedNode?.type === "intent" && selectedIntentRecord && (
+        <IntentCard intent={selectedIntentRecord} format={format} />
+      )}
+      {producingIntent && selectedNode?.type === "fact" && (
+        <p className="text-xs text-muted-foreground">
+          {t("project.fact.producedByLine", {
+            intent: producingIntent.id,
+            from: producingIntent.from.join(", "),
+          })}
+        </p>
+      )}
     </div>
   );
 }

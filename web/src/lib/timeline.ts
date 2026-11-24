@@ -211,15 +211,15 @@ export function timelineEventBadge(entry: TimelineEvent): string {
 
 export function timelineEventBadgeClass(entry: TimelineEvent): string {
   const classes: Record<string, string> = {
-    project_created: "bg-slate-100 text-slate-600",
-    hint_added: "bg-amber-50 text-amber-700",
-    reason_started: "bg-sky-50 text-sky-700",
-    intent_declared: "bg-violet-50 text-violet-700",
-    intent_running: "bg-amber-50 text-amber-700",
-    intent_concluded: "bg-teal-50 text-teal-700",
-    project_completed: "bg-rose-50 text-rose-700",
+    project_created: "bg-secondary text-secondary-foreground",
+    hint_added: "bg-warning/12 text-warning-foreground dark:bg-warning/16",
+    reason_started: "bg-info/12 text-info-foreground dark:bg-info/16",
+    intent_declared: "bg-violet-500/12 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300",
+    intent_running: "bg-warning/12 text-warning-foreground dark:bg-warning/16",
+    intent_concluded: "bg-success/12 text-success-foreground dark:bg-success/16",
+    project_completed: "bg-destructive/12 text-destructive-foreground dark:bg-destructive/20",
   };
-  return classes[entry.type] ?? "bg-slate-100 text-slate-600";
+  return classes[entry.type] ?? "bg-secondary text-secondary-foreground";
 }
 
 export function timelineEventDotClass(entry: TimelineEvent): string {

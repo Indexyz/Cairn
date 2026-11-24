@@ -525,6 +525,12 @@ const ja: LocaleSchema = {
     zh_CN: "简体中文",
     ja: "日本語",
   },
+  theme: {
+    label: "外観",
+    system: "システム",
+    light: "ライト",
+    dark: "ダーク",
+  },
 };
 
 export default ja;

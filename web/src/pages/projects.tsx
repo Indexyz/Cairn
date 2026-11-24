@@ -5,27 +5,31 @@ import {
   CalendarClock,
   ChevronDown,
   ChevronRight,
+  FolderKanban,
   Plus,
   Search,
   Square,
 } from "lucide-react";
 
-import { usePrefs } from "@/hooks/use-prefs";
-import { useToast } from "@/hooks/use-toast";
-import { api, fetchText } from "@/lib/api";
-import type { Hint, ProjectDetail, ProjectStatus, ProjectSummary, Schedule } from "@/lib/types";
 import { ProjectRow } from "@/components/projects/project-row";
 import { ProjectsDialogs } from "@/components/projects/projects-dialogs";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Frame, FrameFooter, FramePanel } from "@/components/ui/frame";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import {
   Select,
-  SelectContent,
   SelectItem,
+  SelectPopup,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -34,10 +38,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { usePrefs } from "@/hooks/use-prefs";
+import { useToast } from "@/hooks/use-toast";
+import { api, fetchText } from "@/lib/api";
+import type { Hint, ProjectDetail, ProjectStatus, ProjectSummary, Schedule } from "@/lib/types";
 
-
-
-export function useProjectsPage() {  const toast = useToast();
+export function useProjectsPage() {
+  const toast = useToast();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { actorName } = usePrefs();
@@ -71,7 +78,9 @@ export function useProjectsPage() {  const toast = useToast();
   const [forkingBusy, setForkingBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const nextHintId = useRef(1);
-  const [snapshot, setSnapshot] = useState<{ id: string; title: string; text: string } | null>(null);
+  const [snapshot, setSnapshot] = useState<{ id: string; title: string; text: string } | null>(
+    null,
+  );
 
   async function load() {
     try {
@@ -159,7 +168,8 @@ export function useProjectsPage() {  const toast = useToast();
         goal: newForm.goal,
         bootstrap_enabled: newForm.bootstrap,
         max_steps: newForm.maxSteps.trim() ? Number(newForm.maxSteps) : null,
-        hints: hints.length > 0 ? hints.map((content) => ({ content, creator: actorName })) : undefined,
+        hints:
+          hints.length > 0 ? hints.map((content) => ({ content, creator: actorName })) : undefined,
       });
       setNewOpen(false);
       setNewForm({
@@ -171,7 +181,7 @@ export function useProjectsPage() {  const toast = useToast();
         hints: [{ id: nextHintId.current++, content: "" }],
       });
       await load();
-      toast.show(t("projects.toast.created"));
+      toast.show(t("projects.toast.created"), "success");
       navigate(`/projects/${created.project.id}`);
     } catch (error) {
       toast.show((error as Error).message, "error");
@@ -182,7 +192,10 @@ export function useProjectsPage() {  const toast = useToast();
     try {
       await api("PUT", `/projects/${projectId}/status`, { status: next });
       await load();
-      toast.show(t(next === "stopped" ? "projects.toast.stopped" : "projects.toast.resumed"));
+      toast.show(
+        t(next === "stopped" ? "projects.toast.stopped" : "projects.toast.resumed"),
+        "success",
+      );
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -194,7 +207,9 @@ export function useProjectsPage() {  const toast = useToast();
     setStopping(true);
     try {
       const results = await Promise.allSettled(
-        active.map((project) => api("PUT", `/projects/${project.id}/status`, { status: "stopped" })),
+        active.map((project) =>
+          api("PUT", `/projects/${project.id}/status`, { status: "stopped" }),
+        ),
       );
       const failures = results.filter((result) => result.status === "rejected").length;
       await load();
@@ -202,7 +217,7 @@ export function useProjectsPage() {  const toast = useToast();
         failures === 0
           ? t("projects.toast.stoppedAll", { count: active.length })
           : t("projects.toast.stoppedSome", { failed: failures }),
-        failures === 0 ? "info" : "error",
+        failures === 0 ? "success" : "error",
       );
     } finally {
       setStopping(false);
@@ -215,7 +230,7 @@ export function useProjectsPage() {  const toast = useToast();
       await api("PUT", `/projects/${rename.id}/title`, { title: rename.title });
       setRename(null);
       await load();
-      toast.show(t("projects.toast.renamed"));
+      toast.show(t("projects.toast.renamed"), "success");
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -231,7 +246,7 @@ export function useProjectsPage() {  const toast = useToast();
       setReopen(null);
       setReopenText("");
       await load();
-      toast.show(t("projects.toast.reopened"));
+      toast.show(t("projects.toast.reopened"), "success");
     } catch (error) {
       toast.show((error as Error).message, "error");
     }
@@ -275,7 +290,7 @@ export function useProjectsPage() {  const toast = useToast();
       });
       setForking(null);
       await load();
-      toast.show(t("projects.toast.forked", { id: forked.project.id }));
+      toast.show(t("projects.toast.forked", { id: forked.project.id }), "success");
       navigate(`/projects/${forked.project.id}`);
     } catch (error) {
       toast.show((error as Error).message, "error");
@@ -291,7 +306,7 @@ export function useProjectsPage() {  const toast = useToast();
       await api("DELETE", `/projects/${removal.id}`);
       setRemoval(null);
       await load();
-      toast.show(t("projects.toast.deleted", { id: removal.id }));
+      toast.show(t("projects.toast.deleted", { id: removal.id }), "success");
     } catch (error) {
       toast.show((error as Error).message, "error");
     } finally {
@@ -401,22 +416,35 @@ export function ProjectsPage() {
     setSnapshot,
     setProjectStatus,
     openSnapshot,
-    actorName,
-    setStatusFilter,
     snapshot,
     status,
+    setStatusFilter,
     stopAll,
     stopping,
     toggleGroup,
+    actorName,
   } = useProjectsPage();
   const { t } = useTranslation();
 
+  const statusItems = useMemo(
+    () => [
+      { value: "all", label: t("projects.filterAll") },
+      { value: "active", label: t("common.status.active") },
+      { value: "stopped", label: t("common.status.stopped") },
+      { value: "blocked", label: t("common.status.blocked") },
+      { value: "completed", label: t("common.status.completed") },
+    ],
+    [t],
+  );
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-5">
-        <div>
-          <h1 className="text-sm font-semibold">{t("projects.title")}</h1>
-          <p className="text-xs text-muted-foreground">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b bg-background px-6 py-4">
+        <div className="min-w-0">
+          <h1 className="font-heading text-lg font-semibold tracking-tight text-foreground">
+            {t("projects.title")}
+          </h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {t("projects.summary", {
               active: counts.active,
               stopped: counts.stopped,
@@ -425,144 +453,181 @@ export function ProjectsPage() {
             })}
           </p>
         </div>
-        <div className="flex-1" />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={stopAll}
-          disabled={counts.active === 0 || stopping}
-        >
-          <Square className="size-3.5" />
-          {t("projects.stopAll")}
-        </Button>
+        <div className="flex items-center gap-2">
+          {counts.active > 0 && (
+            <Button
+              variant="outline"
+              onClick={() => void stopAll()}
+              disabled={stopping}
+              loading={stopping}
+            >
+              <Square className="size-3.5" />
+              {t("projects.stopAll")}
+            </Button>
+          )}
+          <Button onClick={() => setNewOpen(true)}>
+            <Plus className="size-4" />
+            {t("projects.newProject")}
+          </Button>
+        </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-5">
-        <div className="mx-auto w-full max-w-6xl">
-          <div className="rounded-xl border bg-card">
-            <div className="flex flex-wrap items-center gap-2 border-b p-3">
-              <div className="relative min-w-60 flex-1">
-                <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder={t("projects.searchPlaceholder")}
-                  className="pl-8"
-                />
-              </div>
-              <Select value={status} onValueChange={(value) => setStatusFilter(value as typeof status)}>
-                <SelectTrigger className="w-36">
+      <div className="flex-1 overflow-auto p-6">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <InputGroup className="w-full max-w-xs">
+              <InputGroupAddon align="inline-start">
+                <Search className="size-4" />
+              </InputGroupAddon>
+              <InputGroupInput
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={t("projects.searchPlaceholder")}
+              />
+            </InputGroup>
+
+            <div className="w-40">
+              <Select
+                items={statusItems}
+                value={status}
+                onValueChange={(value) => {
+                  if (value) setStatusFilter(value as "all" | ProjectStatus);
+                }}
+              >
+                <SelectTrigger aria-label={t("projects.header.status")}>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("projects.filterAll")}</SelectItem>
-                  <SelectItem value="active">{t("common.status.active")}</SelectItem>
-                  <SelectItem value="stopped">{t("common.status.stopped")}</SelectItem>
-                  <SelectItem value="blocked">{t("common.status.blocked")}</SelectItem>
-                  <SelectItem value="completed">{t("common.status.completed")}</SelectItem>
-                </SelectContent>
+                <SelectPopup>
+                  {statusItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectPopup>
               </Select>
-              <span className="text-xs text-muted-foreground">
-                {t("projects.count", { shown: filtered.length, total: counts.all })}
-              </span>
-              <div className="flex-1" />
-              <Button size="sm" onClick={() => setNewOpen(true)}>
-                <Plus className="size-4" />
-                {t("projects.newProject")}
-              </Button>
             </div>
 
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-28">{t("projects.header.id")}</TableHead>
-                  <TableHead>{t("projects.header.title")}</TableHead>
-                  <TableHead className="w-24">{t("projects.header.status")}</TableHead>
-                  <TableHead className="w-20 text-right">{t("projects.header.facts")}</TableHead>
-                  <TableHead className="w-20 text-right">{t("projects.header.intents")}</TableHead>
-                  <TableHead className="w-20 text-right">{t("projects.header.hints")}</TableHead>
-                  <TableHead className="w-40">{t("projects.header.created")}</TableHead>
-                  <TableHead className="w-56 text-right">{t("projects.header.actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="py-16 text-center text-muted-foreground">
-                      {t("projects.empty")}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {rows.map((row) =>
-                  row.kind === "project" ? (
-                    <ProjectRow
-                      key={row.project.id}
-                      project={row.project}
-                      inGroup={false}
-                      onRename={(project) => setRename({ id: project.id, title: project.title })}
-                      onFork={(project) => void openFork(project)}
-                      onSnapshot={(project) => void openSnapshot(project)}
-                      onStatus={(project, next) => void setProjectStatus(project.id, next)}
-                      onDelete={(project) => setRemoval({ id: project.id, title: project.title })}
-                    />
-                  ) : (
-                    <Fragment key={row.scheduleId}>
-                      <TableRow className="bg-muted/40 hover:bg-muted/40">
-                        <TableCell colSpan={8}>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => toggleGroup(row.scheduleId)}
-                              title={
-                                expandedGroups.has(row.scheduleId)
-                                  ? t("projects.group.collapse")
-                                  : t("projects.group.expand")
-                              }
-                            >
-                              {expandedGroups.has(row.scheduleId) ? (
-                                <ChevronDown className="size-3.5" />
-                              ) : (
-                                <ChevronRight className="size-3.5" />
-                              )}
-                            </Button>
-                            <CalendarClock className="size-3.5 text-muted-foreground" />
-                            <span className="text-xs font-medium">{row.name}</span>
-                            <Badge variant="secondary">
-                              {t("projects.group.runs", { count: row.projects.length })}
-                            </Badge>
-                            <Link
-                              to="/schedules"
-                              className="ml-auto text-[11px] text-muted-foreground hover:underline"
-                            >
-                              {t("projects.group.openSchedule")}
-                            </Link>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                      {expandedGroups.has(row.scheduleId) &&
-                        row.projects.map((project) => (
-                          <ProjectRow
-                            key={project.id}
-                            project={project}
-                            inGroup
-                            onRename={(item) => setRename({ id: item.id, title: item.title })}
-                            onFork={(item) => void openFork(item)}
-                            onSnapshot={(item) => void openSnapshot(item)}
-                            onStatus={(item, next) => void setProjectStatus(item.id, next)}
-                            onDelete={(item) => setRemoval({ id: item.id, title: item.title })}
-                          />
-                        ))}
-                    </Fragment>
-                  ),
-                )}
-              </TableBody>
-            </Table>
-            <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground">
-              <span>{t("projects.perPage")}</span>
-              <span>{t("projects.pagination", { shown: filtered.length, total: counts.all })}</span>
-            </div>
+            <Badge variant="outline" className="ml-auto tabular-nums">
+              {t("projects.count", { shown: filtered.length, total: counts.all })}
+            </Badge>
           </div>
+
+          <Frame>
+            <FramePanel className="overflow-hidden p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>{t("projects.header.id")}</TableHead>
+                    <TableHead>{t("projects.header.title")}</TableHead>
+                    <TableHead>{t("projects.header.status")}</TableHead>
+                    <TableHead className="text-right">{t("projects.header.facts")}</TableHead>
+                    <TableHead className="text-right">{t("projects.header.intents")}</TableHead>
+                    <TableHead className="text-right">{t("projects.header.hints")}</TableHead>
+                    <TableHead>{t("projects.header.created")}</TableHead>
+                    <TableHead className="text-right">{t("projects.header.actions")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.length === 0 ? (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={8} className="p-0">
+                        <Empty className="py-12">
+                          <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                              <FolderKanban />
+                            </EmptyMedia>
+                            <EmptyTitle>{t("projects.empty")}</EmptyTitle>
+                          </EmptyHeader>
+                        </Empty>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    rows.map((row) =>
+                      row.kind === "project" ? (
+                        <ProjectRow
+                          key={row.project.id}
+                          project={row.project}
+                          inGroup={false}
+                          onRename={(project) =>
+                            setRename({ id: project.id, title: project.title })
+                          }
+                          onFork={(project) => void openFork(project)}
+                          onSnapshot={(project) => void openSnapshot(project)}
+                          onStatus={(project, next) => void setProjectStatus(project.id, next)}
+                          onDelete={(project) =>
+                            setRemoval({ id: project.id, title: project.title })
+                          }
+                        />
+                      ) : (
+                        <Fragment key={row.scheduleId}>
+                          <TableRow className="bg-muted/48 hover:bg-muted/64">
+                            <TableCell colSpan={8}>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  onClick={() => toggleGroup(row.scheduleId)}
+                                  title={
+                                    expandedGroups.has(row.scheduleId)
+                                      ? t("projects.group.collapse")
+                                      : t("projects.group.expand")
+                                  }
+                                  aria-label={
+                                    expandedGroups.has(row.scheduleId)
+                                      ? t("projects.group.collapse")
+                                      : t("projects.group.expand")
+                                  }
+                                >
+                                  {expandedGroups.has(row.scheduleId) ? (
+                                    <ChevronDown className="size-3.5" />
+                                  ) : (
+                                    <ChevronRight className="size-3.5" />
+                                  )}
+                                </Button>
+                                <CalendarClock className="size-3.5 text-muted-foreground" />
+                                <span className="text-xs font-medium text-foreground">
+                                  {row.name}
+                                </span>
+                                <Badge variant="secondary">
+                                  {t("projects.group.runs", { count: row.projects.length })}
+                                </Badge>
+                                <Link
+                                  to="/schedules"
+                                  className="ml-auto text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                                >
+                                  {t("projects.group.openSchedule")}
+                                </Link>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {expandedGroups.has(row.scheduleId) &&
+                            row.projects.map((project) => (
+                              <ProjectRow
+                                key={project.id}
+                                project={project}
+                                inGroup
+                                onRename={(item) => setRename({ id: item.id, title: item.title })}
+                                onFork={(item) => void openFork(item)}
+                                onSnapshot={(item) => void openSnapshot(item)}
+                                onStatus={(item, next) => void setProjectStatus(item.id, next)}
+                                onDelete={(item) => setRemoval({ id: item.id, title: item.title })}
+                              />
+                            ))}
+                        </Fragment>
+                      ),
+                    )
+                  )}
+                </TableBody>
+              </Table>
+            </FramePanel>
+            <FrameFooter className="flex items-center justify-between py-2.5 text-xs text-muted-foreground">
+              <span>{t("projects.perPage")}</span>
+              <span className="tabular-nums">
+                {t("projects.pagination", { shown: filtered.length, total: counts.all })}
+              </span>
+            </FrameFooter>
+          </Frame>
         </div>
       </div>
 

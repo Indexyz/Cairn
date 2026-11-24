@@ -246,7 +246,8 @@ export function buildElements(project: ProjectDetail): ElementDefinition[] {
   return [...nodes, ...edges];
 }
 
-export function graphStyles(): StylesheetStyle[] {
+export function graphStyles(theme: "light" | "dark" = "light"): StylesheetStyle[] {
+  const dark = theme === "dark";
   const common = {
     "text-valign": "center" as const,
     "text-halign": "center" as const,
@@ -255,35 +256,35 @@ export function graphStyles(): StylesheetStyle[] {
   return [
     {
       selector: 'node[nodeType="origin"]',
-      style: { ...common, shape: "round-rectangle", "background-color": "#0f766e", label: "data(label)", color: "#fff", "font-size": "11px", "font-weight": "bold", "text-wrap": "wrap", "text-max-width": "92px", "text-overflow-wrap": "anywhere", width: "data(width)", height: "data(height)", "border-width": 0 },
+      style: { ...common, shape: "round-rectangle", "background-color": dark ? "#0d9488" : "#0f766e", label: "data(label)", color: "#fff", "font-size": "11px", "font-weight": "bold", "text-wrap": "wrap", "text-max-width": "92px", "text-overflow-wrap": "anywhere", width: "data(width)", height: "data(height)", "border-width": 0 },
     },
     {
       selector: 'node[nodeType="goal"]',
-      style: { ...common, shape: "round-rectangle", "background-color": "#e11d48", label: "data(label)", color: "#fff", "font-size": "11px", "font-weight": "bold", "text-wrap": "wrap", "text-max-width": "92px", "text-overflow-wrap": "anywhere", width: "data(width)", height: "data(height)", "border-width": 0 },
+      style: { ...common, shape: "round-rectangle", "background-color": dark ? "#f43f5e" : "#e11d48", label: "data(label)", color: "#fff", "font-size": "11px", "font-weight": "bold", "text-wrap": "wrap", "text-max-width": "92px", "text-overflow-wrap": "anywhere", width: "data(width)", height: "data(height)", "border-width": 0 },
     },
     {
       selector: 'node[nodeType="fact"]',
-      style: { ...common, shape: "round-rectangle", "background-color": "#4f46e5", label: "data(label)", color: "#fff", "font-size": "10px", "font-weight": "bold", "text-wrap": "wrap", "text-max-width": "116px", "text-overflow-wrap": "anywhere", width: "data(width)", height: "data(height)", "border-width": 0 },
+      style: { ...common, shape: "round-rectangle", "background-color": dark ? "#6366f1" : "#4f46e5", label: "data(label)", color: "#fff", "font-size": "10px", "font-weight": "bold", "text-wrap": "wrap", "text-max-width": "116px", "text-overflow-wrap": "anywhere", width: "data(width)", height: "data(height)", "border-width": 0 },
     },
     {
       selector: 'node[nodeType="group"]',
-      style: { ...common, shape: "round-rectangle", "background-color": "#fffbeb", "background-opacity": 0.96, label: "data(label)", color: "#b45309", "font-size": "10px", "font-weight": "bold", width: "data(width)", height: "data(height)", "border-width": 1.5, "border-color": "#f59e0b", "border-style": "dashed", "text-wrap": "wrap", "text-max-width": "120px" },
+      style: { ...common, shape: "round-rectangle", "background-color": dark ? "#2a1f0a" : "#fffbeb", "background-opacity": 0.96, label: "data(label)", color: dark ? "#fbbf24" : "#b45309", "font-size": "10px", "font-weight": "bold", width: "data(width)", height: "data(height)", "border-width": 1.5, "border-color": dark ? "#d97706" : "#f59e0b", "border-style": "dashed", "text-wrap": "wrap", "text-max-width": "120px" },
     },
     {
       selector: 'edge[status="group"]',
-      style: { width: 1.5, "line-color": "#fcd34d", "line-style": "dashed", "line-dash-pattern": [6, 4], "target-arrow-color": "#fcd34d", "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(label)", "font-size": "7px", color: "#b45309", "text-rotation": "autorotate", "text-margin-y": -9, "text-background-color": "#fffbeb", "text-background-opacity": 0.9, "text-background-padding": "2px", "arrow-scale": 0.7 },
+      style: { width: 1.5, "line-color": dark ? "#d97706" : "#fcd34d", "line-style": "dashed", "line-dash-pattern": [6, 4], "target-arrow-color": dark ? "#d97706" : "#fcd34d", "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(label)", "font-size": "7px", color: dark ? "#fbbf24" : "#b45309", "text-rotation": "autorotate", "text-margin-y": -9, "text-background-color": dark ? "#1c1917" : "#fffbeb", "text-background-opacity": 0.9, "text-background-padding": "2px", "arrow-scale": 0.7 },
     },
     {
       selector: 'node[nodeType="in_progress"]',
-      style: { ...common, shape: "ellipse", "background-color": "#f59e0b", "background-opacity": 0.8, label: "?", color: "#fff", "font-size": "11px", "font-weight": "bold", width: 22, height: 22, "border-width": 2, "border-color": "#d97706" },
+      style: { ...common, shape: "ellipse", "background-color": "#f59e0b", "background-opacity": 0.85, label: "?", color: "#fff", "font-size": "11px", "font-weight": "bold", width: 22, height: 22, "border-width": 2, "border-color": "#d97706" },
     },
     {
       selector: 'node[nodeType="unclaimed"]',
-      style: { ...common, shape: "ellipse", "background-color": "#cbd5e1", "background-opacity": 0.5, label: "?", color: "#94a3b8", "font-size": "11px", "font-weight": "bold", width: 20, height: 20, "border-width": 1.5, "border-color": "#94a3b8", "border-style": "dashed" },
+      style: { ...common, shape: "ellipse", "background-color": dark ? "#3f3f46" : "#cbd5e1", "background-opacity": dark ? 0.8 : 0.5, label: "?", color: dark ? "#a1a1aa" : "#94a3b8", "font-size": "11px", "font-weight": "bold", width: 20, height: 20, "border-width": 1.5, "border-color": dark ? "#71717a" : "#94a3b8", "border-style": "dashed" },
     },
     {
       selector: 'node[nodeType="bootstrap_pending"]',
-      style: { ...common, shape: "round-rectangle", "background-color": "#fff7ed", "background-opacity": 0.96, label: "data(label)", color: "#c2410c", "font-size": "10px", "font-weight": "bold", width: "data(width)", height: "data(height)", "border-width": 1.5, "border-color": "#fdba74", "border-style": "dashed", "text-wrap": "wrap", "text-max-width": "70px" },
+      style: { ...common, shape: "round-rectangle", "background-color": dark ? "#2e1a0c" : "#fff7ed", "background-opacity": 0.96, label: "data(label)", color: dark ? "#fb923c" : "#c2410c", "font-size": "10px", "font-weight": "bold", width: "data(width)", height: "data(height)", "border-width": 1.5, "border-color": dark ? "#ea580c" : "#fdba74", "border-style": "dashed", "text-wrap": "wrap", "text-max-width": "70px" },
     },
     {
       selector: 'node[nodeType="bootstrap_running"]',
@@ -291,23 +292,23 @@ export function graphStyles(): StylesheetStyle[] {
     },
     {
       selector: 'edge[status="concluded"]',
-      style: { width: 2, "line-color": "#6ee7b7", "target-arrow-color": "#6ee7b7", "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(label)", "font-size": "7px", color: "#94a3b8", "text-rotation": "autorotate", "text-margin-y": -9, "text-max-width": "80px", "text-wrap": "ellipsis", "text-background-color": "#f8fafc", "text-background-opacity": 0.85, "text-background-padding": "2px", "text-events": "yes", "arrow-scale": 0.9 },
+      style: { width: 2, "line-color": dark ? "#10b981" : "#6ee7b7", "target-arrow-color": dark ? "#10b981" : "#6ee7b7", "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(label)", "font-size": "7px", color: dark ? "#a1a1aa" : "#64748b", "text-rotation": "autorotate", "text-margin-y": -9, "text-max-width": "80px", "text-wrap": "ellipsis", "text-background-color": dark ? "#18181b" : "#f8fafc", "text-background-opacity": 0.9, "text-background-padding": "2px", "text-events": "yes", "arrow-scale": 0.9 },
     },
     {
       selector: 'edge[status="in_progress"]',
-      style: { width: 2, "line-color": "#fbbf24", "line-style": "dashed", "line-dash-pattern": [8, 4], "line-dash-offset": 0, "target-arrow-color": "#fbbf24", "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(label)", "font-size": "7px", color: "#b45309", "text-rotation": "autorotate", "text-margin-y": -9, "text-max-width": "80px", "text-wrap": "ellipsis", "text-background-color": "#fffbeb", "text-background-opacity": 0.85, "text-background-padding": "2px", "text-events": "yes", "arrow-scale": 0.9 },
+      style: { width: 2, "line-color": "#fbbf24", "line-style": "dashed", "line-dash-pattern": [8, 4], "line-dash-offset": 0, "target-arrow-color": "#fbbf24", "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(label)", "font-size": "7px", color: dark ? "#fbbf24" : "#b45309", "text-rotation": "autorotate", "text-margin-y": -9, "text-max-width": "80px", "text-wrap": "ellipsis", "text-background-color": dark ? "#1c1917" : "#fffbeb", "text-background-opacity": 0.9, "text-background-padding": "2px", "text-events": "yes", "arrow-scale": 0.9 },
     },
     {
       selector: 'edge[status="unclaimed"]',
-      style: { width: 1.5, "line-color": "#cbd5e1", "line-style": "dashed", "line-dash-pattern": [5, 5], "target-arrow-color": "#cbd5e1", "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(label)", "font-size": "7px", color: "#94a3b8", "text-rotation": "autorotate", "text-margin-y": -9, "text-max-width": "80px", "text-wrap": "ellipsis", "text-background-color": "#f8fafc", "text-background-opacity": 0.85, "text-background-padding": "2px", "text-events": "yes", "arrow-scale": 0.7 },
+      style: { width: 1.5, "line-color": dark ? "#52525b" : "#cbd5e1", "line-style": "dashed", "line-dash-pattern": [5, 5], "target-arrow-color": dark ? "#52525b" : "#cbd5e1", "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(label)", "font-size": "7px", color: dark ? "#a1a1aa" : "#94a3b8", "text-rotation": "autorotate", "text-margin-y": -9, "text-max-width": "80px", "text-wrap": "ellipsis", "text-background-color": dark ? "#18181b" : "#f8fafc", "text-background-opacity": 0.9, "text-background-padding": "2px", "text-events": "yes", "arrow-scale": 0.7 },
     },
     {
       selector: 'edge[status="bootstrap_pending"]',
-      style: { width: 2, "line-color": "#fdba74", "line-style": "dashed", "line-dash-pattern": [8, 4], "line-dash-offset": 0, "target-arrow-color": "#fdba74", "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(label)", "font-size": "7px", color: "#c2410c", "text-rotation": "autorotate", "text-margin-y": -9, "text-max-width": "88px", "text-wrap": "ellipsis", "text-background-color": "#fff7ed", "text-background-opacity": 0.92, "text-background-padding": "2px", "text-events": "yes", "arrow-scale": 0.85 },
+      style: { width: 2, "line-color": dark ? "#ea580c" : "#fdba74", "line-style": "dashed", "line-dash-pattern": [8, 4], "line-dash-offset": 0, "target-arrow-color": dark ? "#ea580c" : "#fdba74", "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(label)", "font-size": "7px", color: dark ? "#fb923c" : "#c2410c", "text-rotation": "autorotate", "text-margin-y": -9, "text-max-width": "88px", "text-wrap": "ellipsis", "text-background-color": dark ? "#1c1917" : "#fff7ed", "text-background-opacity": 0.92, "text-background-padding": "2px", "text-events": "yes", "arrow-scale": 0.85 },
     },
     {
       selector: 'edge[status="bootstrap_running"]',
-      style: { width: 2.5, "line-color": "#fb923c", "line-style": "dashed", "line-dash-pattern": [10, 4], "line-dash-offset": 0, "target-arrow-color": "#fb923c", "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(label)", "font-size": "7px", color: "#c2410c", "text-rotation": "autorotate", "text-margin-y": -9, "text-max-width": "88px", "text-wrap": "ellipsis", "text-background-color": "#fff7ed", "text-background-opacity": 0.92, "text-background-padding": "2px", "text-events": "yes", "arrow-scale": 0.95 },
+      style: { width: 2.5, "line-color": "#fb923c", "line-style": "dashed", "line-dash-pattern": [10, 4], "line-dash-offset": 0, "target-arrow-color": "#fb923c", "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(label)", "font-size": "7px", color: dark ? "#fb923c" : "#c2410c", "text-rotation": "autorotate", "text-margin-y": -9, "text-max-width": "88px", "text-wrap": "ellipsis", "text-background-color": dark ? "#1c1917" : "#fff7ed", "text-background-opacity": 0.92, "text-background-padding": "2px", "text-events": "yes", "arrow-scale": 0.95 },
     },
     {
       selector: 'edge[edgeType="bootstrap_scope"]',
@@ -315,10 +316,10 @@ export function graphStyles(): StylesheetStyle[] {
     },
     { selector: ".highlight", style: { "z-index": 999 } },
     { selector: "edge.highlight", style: { "z-index": 999 } },
-    { selector: "node.focus", style: { "border-width": 3, "border-color": "#312e81", "border-opacity": 0.95, "z-index": 1000 } },
-    { selector: "edge.focus", style: { "z-index": 1000, "overlay-color": "#93c5fd", "overlay-opacity": 0.22, "overlay-padding": 5 } },
-    { selector: "node.selected-fact", style: { "border-width": 0, "underlay-color": "#93c5fd", "underlay-padding": 8, "underlay-opacity": 0.28, "z-index": 1001 } },
-    { selector: ".faded", style: { opacity: 0.5 } },
+    { selector: "node.focus", style: { "border-width": 3, "border-color": dark ? "#a5b4fc" : "#312e81", "border-opacity": 0.95, "z-index": 1000 } },
+    { selector: "edge.focus", style: { "z-index": 1000, "overlay-color": dark ? "#60a5fa" : "#93c5fd", "overlay-opacity": 0.25, "overlay-padding": 5 } },
+    { selector: "node.selected-fact", style: { "border-width": 0, "underlay-color": dark ? "#60a5fa" : "#93c5fd", "underlay-padding": 8, "underlay-opacity": 0.3, "z-index": 1001 } },
+    { selector: ".faded", style: { opacity: 0.45 } },
     { selector: ".fresh", style: { opacity: 0 } },
   ];
 }

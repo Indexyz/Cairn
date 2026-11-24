@@ -14,9 +14,12 @@ import {
   type ViewContext,
 } from "@/hooks/use-project-view-props";
 import { useProjectReplay } from "@/hooks/use-project-replay";
+import { useTranslation } from "react-i18next";
 import { useCytoscape } from "@/hooks/use-cytoscape";
 import { usePrefs } from "@/hooks/use-prefs";
+import { useTheme } from "@/hooks/use-theme";
 import { useToast } from "@/hooks/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { useFormat, type LayoutMode } from "@/lib/format";
 import { groupNodeId } from "@/lib/graph";
@@ -32,6 +35,7 @@ function useProjectPage() {
   const toast = useToast();
   const format = useFormat();
   const { actorName, prefs, save: savePrefs } = usePrefs();
+  const { resolvedTheme } = useTheme();
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [sideTab, setSideTab] = useState<"detail" | "hints" | "log">("detail");
@@ -168,6 +172,7 @@ function useProjectPage() {
     resetKey: replayVersion,
     project,
     layoutMode,
+    theme: resolvedTheme,
     selectedNode,
     selectedFacts,
     onNodeTap: (node: NodeSingular, shiftKey: boolean) => {
@@ -415,11 +420,13 @@ function ProjectView({ view }: ProjectViewProps) {
 
 export function ProjectPage() {
   const view = useProjectPage();
+  const { t } = useTranslation();
 
   if (!view) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Loading
+      <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+        <Spinner className="size-4" />
+        <span>{t("common.loading")}</span>
       </div>
     );
   }

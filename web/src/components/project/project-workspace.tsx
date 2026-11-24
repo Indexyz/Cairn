@@ -1,10 +1,13 @@
 import type { RefObject } from "react";
 
-import type { ProjectDetail } from "@/lib/types";
 import { GraphToolbar, type GraphToolbarProps } from "@/components/project/graph-toolbar";
 import { ProjectDialogs, type ProjectDialogsProps } from "@/components/project/project-dialogs";
 import { ProjectHeader, type ProjectHeaderProps } from "@/components/project/project-header";
-import { ProjectSidePanel, type ProjectSidePanelProps } from "@/components/project/project-side-panel";
+import {
+  ProjectSidePanel,
+  type ProjectSidePanelProps,
+} from "@/components/project/project-side-panel";
+import type { ProjectDetail } from "@/lib/types";
 
 export interface ProjectWorkspaceProps {
   project: ProjectDetail;
@@ -30,17 +33,19 @@ export function ProjectWorkspace({
   onPanelResizeStart,
 }: ProjectWorkspaceProps) {
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden bg-background">
       <ProjectHeader {...header} />
       <div className="flex min-h-0 flex-1">
-        <div className="relative min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1 bg-muted/24">
           <GraphToolbar {...toolbar} />
           <div key={replayVersion} ref={graphRef} className="h-full w-full" />
         </div>
 
         <div
+          role="separator"
+          aria-orientation="vertical"
           onPointerDown={onPanelResizeStart}
-          className="w-1.5 shrink-0 cursor-col-resize bg-border/60 hover:bg-border"
+          className="w-1 shrink-0 cursor-col-resize bg-border/70 transition-colors hover:bg-ring/60"
         />
 
         <ProjectSidePanel {...panel} width={panelWidth} project={project} />

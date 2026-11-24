@@ -1,15 +1,19 @@
 import { useTranslation } from "react-i18next";
 import { Copy, Download } from "lucide-react";
 
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogContent,
+  DialogClose,
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogPanel,
+  DialogPopup,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field, FieldDescription } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -76,23 +80,23 @@ export function ProjectDialogs(props: ProjectDialogsProps) {
   return (
     <>
       <Dialog open={props.intentOpen} onOpenChange={props.onIntentOpenChange}>
-        <DialogContent>
+        <DialogPopup>
           <DialogHeader>
             <DialogTitle>{t("project.dialogs.intent.title")}</DialogTitle>
             <DialogDescription>
               {t("project.dialogs.intent.from", { facts: props.factsLabel })}
             </DialogDescription>
           </DialogHeader>
-          <Textarea
-            value={props.intentText}
-            onChange={(event) => props.onIntentText(event.target.value)}
-            placeholder={t("project.dialogs.intent.placeholder")}
-            rows={3}
-          />
+          <DialogPanel>
+            <Textarea
+              value={props.intentText}
+              onChange={(event) => props.onIntentText(event.target.value)}
+              placeholder={t("project.dialogs.intent.placeholder")}
+              rows={3}
+            />
+          </DialogPanel>
           <DialogFooter>
-            <Button variant="outline" onClick={() => props.onIntentOpenChange(false)}>
-              {t("common.cancel")}
-            </Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button
               variant="secondary"
               onClick={props.onDeclareIntent}
@@ -104,179 +108,183 @@ export function ProjectDialogs(props: ProjectDialogsProps) {
               {t("project.dialogs.intent.declareClaim")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </DialogPopup>
       </Dialog>
 
-      <Dialog open={props.concludeTargetId !== null} onOpenChange={(open) => !open && props.onCloseConclude()}>
-        <DialogContent>
+      <Dialog
+        open={props.concludeTargetId !== null}
+        onOpenChange={(open) => !open && props.onCloseConclude()}
+      >
+        <DialogPopup>
           <DialogHeader>
             <DialogTitle>{t("project.dialogs.conclude.title")}</DialogTitle>
             <DialogDescription>{props.concludeTargetId}</DialogDescription>
           </DialogHeader>
-          <Textarea
-            value={props.concludeText}
-            onChange={(event) => props.onConcludeText(event.target.value)}
-            placeholder={t("project.dialogs.conclude.placeholder")}
-            rows={3}
-          />
+          <DialogPanel>
+            <Textarea
+              value={props.concludeText}
+              onChange={(event) => props.onConcludeText(event.target.value)}
+              placeholder={t("project.dialogs.conclude.placeholder")}
+              rows={3}
+            />
+          </DialogPanel>
           <DialogFooter>
-            <Button variant="outline" onClick={props.onCloseConclude}>
-              {t("common.cancel")}
-            </Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button onClick={props.onConclude} disabled={!props.concludeText}>
               {t("project.actions.conclude")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </DialogPopup>
       </Dialog>
 
       <Dialog open={props.completeOpen} onOpenChange={props.onCompleteOpenChange}>
-        <DialogContent>
+        <DialogPopup>
           <DialogHeader>
             <DialogTitle>{t("project.dialogs.complete.title")}</DialogTitle>
             <DialogDescription>
               {t("project.dialogs.intent.from", { facts: props.factsLabel })}
             </DialogDescription>
           </DialogHeader>
-          <Textarea
-            value={props.completeText}
-            onChange={(event) => props.onCompleteText(event.target.value)}
-            placeholder={t("project.dialogs.complete.placeholder")}
-            rows={2}
-          />
+          <DialogPanel>
+            <Textarea
+              value={props.completeText}
+              onChange={(event) => props.onCompleteText(event.target.value)}
+              placeholder={t("project.dialogs.complete.placeholder")}
+              rows={2}
+            />
+          </DialogPanel>
           <DialogFooter>
-            <Button variant="outline" onClick={() => props.onCompleteOpenChange(false)}>
-              {t("common.cancel")}
-            </Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button onClick={props.onComplete} disabled={!props.completeText}>
               {t("project.actions.complete")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </DialogPopup>
       </Dialog>
 
       <Dialog open={props.hintOpen} onOpenChange={props.onHintOpenChange}>
-        <DialogContent>
+        <DialogPopup>
           <DialogHeader>
             <DialogTitle>{t("project.dialogs.hint.title")}</DialogTitle>
           </DialogHeader>
-          <Textarea
-            value={props.hintText}
-            onChange={(event) => props.onHintText(event.target.value)}
-            placeholder={t("project.dialogs.hint.placeholder")}
-            rows={3}
-          />
+          <DialogPanel>
+            <Textarea
+              value={props.hintText}
+              onChange={(event) => props.onHintText(event.target.value)}
+              placeholder={t("project.dialogs.hint.placeholder")}
+              rows={3}
+            />
+          </DialogPanel>
           <DialogFooter>
-            <Button variant="outline" onClick={() => props.onHintOpenChange(false)}>
-              {t("common.cancel")}
-            </Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button onClick={props.onAddHint} disabled={!props.hintText}>
               {t("common.add")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </DialogPopup>
       </Dialog>
 
       <Dialog open={props.renameOpen} onOpenChange={props.onRenameOpenChange}>
-        <DialogContent>
+        <DialogPopup>
           <DialogHeader>
             <DialogTitle>{t("project.dialogs.rename.title")}</DialogTitle>
           </DialogHeader>
-          <Input value={props.renameText} onChange={(event) => props.onRenameText(event.target.value)} />
+          <DialogPanel>
+            <Input
+              value={props.renameText}
+              onChange={(event) => props.onRenameText(event.target.value)}
+            />
+          </DialogPanel>
           <DialogFooter>
-            <Button variant="outline" onClick={() => props.onRenameOpenChange(false)}>
-              {t("common.cancel")}
-            </Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button onClick={props.onRename} disabled={!props.renameText}>
               {t("common.save")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </DialogPopup>
       </Dialog>
 
       <Dialog open={props.maxStepsOpen} onOpenChange={props.onMaxStepsOpenChange}>
-        <DialogContent>
+        <DialogPopup>
           <DialogHeader>
             <DialogTitle>{t("project.maxSteps.title")}</DialogTitle>
             <DialogDescription>{t("project.maxSteps.description")}</DialogDescription>
           </DialogHeader>
-          <Input
-            type="number"
-            min={1}
-            value={props.maxStepsText}
-            placeholder={t("project.maxSteps.placeholder")}
-            onChange={(event) => props.onMaxStepsText(event.target.value)}
-          />
-          <p className="text-[11px] text-muted-foreground">{t("project.maxSteps.hint")}</p>
+          <DialogPanel>
+            <Field>
+              <Input
+                type="number"
+                min={1}
+                value={props.maxStepsText}
+                placeholder={t("project.maxSteps.placeholder")}
+                onChange={(event) => props.onMaxStepsText(event.target.value)}
+              />
+              <FieldDescription>{t("project.maxSteps.hint")}</FieldDescription>
+            </Field>
+          </DialogPanel>
           <DialogFooter>
-            <Button variant="outline" onClick={() => props.onMaxStepsOpenChange(false)}>
-              {t("common.cancel")}
-            </Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button onClick={props.onSaveMaxSteps}>{t("common.save")}</Button>
           </DialogFooter>
-        </DialogContent>
+        </DialogPopup>
       </Dialog>
 
       <Dialog open={props.reopenOpen} onOpenChange={props.onReopenOpenChange}>
-        <DialogContent>
+        <DialogPopup>
           <DialogHeader>
             <DialogTitle>{t("project.dialogs.reopen.title")}</DialogTitle>
           </DialogHeader>
-          <Textarea
-            value={props.reopenText}
-            onChange={(event) => props.onReopenText(event.target.value)}
-            placeholder={t("project.dialogs.reopen.placeholder")}
-            rows={3}
-          />
+          <DialogPanel>
+            <Textarea
+              value={props.reopenText}
+              onChange={(event) => props.onReopenText(event.target.value)}
+              placeholder={t("project.dialogs.reopen.placeholder")}
+              rows={3}
+            />
+          </DialogPanel>
           <DialogFooter>
-            <Button variant="outline" onClick={() => props.onReopenOpenChange(false)}>
-              {t("common.cancel")}
-            </Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button onClick={props.onReopen} disabled={!props.reopenText}>
               {t("project.reopen")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </DialogPopup>
       </Dialog>
 
-      <Dialog open={props.deleteOpen} onOpenChange={props.onDeleteOpenChange}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("project.dialogs.remove.title")}</DialogTitle>
-            <DialogDescription>{t("project.dialogs.remove.body")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => props.onDeleteOpenChange(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button variant="destructive" onClick={props.onDelete}>
-              {t("common.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={props.deleteOpen}
+        title={t("project.dialogs.remove.title")}
+        description={t("project.dialogs.remove.body")}
+        onCancel={() => props.onDeleteOpenChange(false)}
+        onConfirm={props.onDelete}
+      />
 
-      <Dialog open={props.snapshot !== null} onOpenChange={(open) => !open && props.onCloseSnapshot()}>
-        <DialogContent className="max-w-4xl">
+      <Dialog
+        open={props.snapshot !== null}
+        onOpenChange={(open) => !open && props.onCloseSnapshot()}
+      >
+        <DialogPopup className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{t("project.snapshot")}</DialogTitle>
             <DialogDescription>{props.projectId}</DialogDescription>
           </DialogHeader>
-          <div className="max-h-[60vh] overflow-auto rounded-lg border bg-muted/40 p-3">
-            <pre className="text-xs leading-5">{props.snapshot}</pre>
-          </div>
+          <DialogPanel>
+            <div className="max-h-[60vh] overflow-auto rounded-xl border bg-code p-3.5 text-code-foreground">
+              <pre className="font-mono text-xs leading-5">{props.snapshot}</pre>
+            </div>
+          </DialogPanel>
           <DialogFooter>
             <Button variant="outline" onClick={props.onDownloadSnapshot}>
-              <Download className="size-3.5" />
+              <Download className="size-4" />
               {t("common.download")}
             </Button>
             <Button variant="outline" onClick={props.onCopySnapshot}>
-              <Copy className="size-3.5" />
+              <Copy className="size-4" />
               {t("common.copy")}
             </Button>
-            <Button onClick={props.onCloseSnapshot}>{t("common.close")}</Button>
+            <DialogClose render={<Button />}>{t("common.close")}</DialogClose>
           </DialogFooter>
-        </DialogContent>
+        </DialogPopup>
       </Dialog>
     </>
   );

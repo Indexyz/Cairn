@@ -1,14 +1,15 @@
 import { useTranslation } from "react-i18next";
 
-import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogPopup,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -29,21 +30,26 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const { t } = useTranslation();
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
+    <AlertDialog open={open} onOpenChange={(next) => !next && onCancel()}>
+      <AlertDialogPopup>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogClose render={<Button variant="outline" />}>
             {t("common.cancel")}
-          </Button>
-          <Button variant="destructive" onClick={onConfirm} disabled={confirmDisabled}>
+          </AlertDialogClose>
+          <Button
+            variant="destructive"
+            onClick={onConfirm}
+            disabled={confirmDisabled}
+            loading={confirmDisabled}
+          >
             {t("common.delete")}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </AlertDialogFooter>
+      </AlertDialogPopup>
+    </AlertDialog>
   );
 }

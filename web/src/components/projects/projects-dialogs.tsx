@@ -1,26 +1,29 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Download, GitFork } from "lucide-react";
+import { Copy, Download, GitFork, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { useToast } from "@/hooks/use-toast";
-import { copyText } from "@/lib/api";
-import { downloadText, snapshotFilename } from "@/lib/download";
-import type { Hint } from "@/lib/types";
-import { cn } from "@/lib/utils";
-
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
-  DialogContent,
+  DialogClose,
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogPanel,
+  DialogPopup,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { copyText } from "@/lib/api";
+import { downloadText, snapshotFilename } from "@/lib/download";
+import type { Hint } from "@/lib/types";
 
 interface ProjectsDialogsProps {
   newOpen: boolean;
@@ -116,40 +119,60 @@ export function ProjectsDialogs(props: ProjectsDialogsProps) {
   return (
     <>
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogPopup className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{t("projects.new.title")}</DialogTitle>
             <DialogDescription>{t("projects.new.description")}</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3">
-            <Input
-              value={newForm.title}
-              onChange={(event) => setNewForm((form) => ({ ...form, title: event.target.value }))}
-              placeholder={t("projects.new.projectTitle")}
-            />
-            <Textarea
-              value={newForm.origin}
-              onChange={(event) => setNewForm((form) => ({ ...form, origin: event.target.value }))}
-              placeholder={t("projects.new.origin")}
-              rows={2}
-            />
-            <Textarea
-              value={newForm.goal}
-              onChange={(event) => setNewForm((form) => ({ ...form, goal: event.target.value }))}
-              placeholder={t("projects.new.goal")}
-              rows={2}
-            />
-            <div className="flex items-center gap-2">
+          <DialogPanel className="grid gap-4">
+            <Field>
+              <FieldLabel htmlFor="new-project-title">{t("projects.new.projectTitle")}</FieldLabel>
+              <Input
+                id="new-project-title"
+                value={newForm.title}
+                onChange={(event) =>
+                  setNewForm((form) => ({ ...form, title: event.target.value }))
+                }
+                placeholder={t("projects.new.projectTitle")}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="new-project-origin">{t("projects.new.origin")}</FieldLabel>
+              <Textarea
+                id="new-project-origin"
+                value={newForm.origin}
+                onChange={(event) =>
+                  setNewForm((form) => ({ ...form, origin: event.target.value }))
+                }
+                placeholder={t("projects.new.origin")}
+                rows={2}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="new-project-goal">{t("projects.new.goal")}</FieldLabel>
+              <Textarea
+                id="new-project-goal"
+                value={newForm.goal}
+                onChange={(event) =>
+                  setNewForm((form) => ({ ...form, goal: event.target.value }))
+                }
+                placeholder={t("projects.new.goal")}
+                rows={2}
+              />
+            </Field>
+            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2.5">
+              <span className="text-sm font-medium text-foreground">
+                {t("projects.new.bootstrap")}
+              </span>
               <Switch
                 checked={newForm.bootstrap}
-                onCheckedChange={(checked) => setNewForm((form) => ({ ...form, bootstrap: checked }))}
+                onCheckedChange={(checked) =>
+                  setNewForm((form) => ({ ...form, bootstrap: checked }))
+                }
               />
-              <Label>{t("projects.new.bootstrap")}</Label>
-            </div>
-            <div className="grid gap-1">
-              <Label htmlFor="new-max-steps" className="text-xs text-muted-foreground">
-                {t("projects.new.maxSteps")}
-              </Label>
+            </label>
+            <Field>
+              <FieldLabel htmlFor="new-max-steps">{t("projects.new.maxSteps")}</FieldLabel>
               <Input
                 id="new-max-steps"
                 type="number"
@@ -160,14 +183,14 @@ export function ProjectsDialogs(props: ProjectsDialogsProps) {
                   setNewForm((form) => ({ ...form, maxSteps: event.target.value }))
                 }
               />
-              <p className="text-[11px] text-muted-foreground">{t("projects.new.maxStepsHint")}</p>
-            </div>
+              <FieldDescription>{t("projects.new.maxStepsHint")}</FieldDescription>
+            </Field>
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground">{t("projects.new.hints")}</Label>
+                <Label>{t("projects.new.hints")}</Label>
                 <Button
-                  variant="link"
-                  size="sm"
+                  variant="ghost"
+                  size="xs"
                   onClick={() => {
                     const id = nextHintId.current++;
                     setNewForm((form) => ({
@@ -176,7 +199,8 @@ export function ProjectsDialogs(props: ProjectsDialogsProps) {
                     }));
                   }}
                 >
-                  + {t("common.add")}
+                  <Plus className="size-3.5" />
+                  {t("common.add")}
                 </Button>
               </div>
               {newForm.hints.map((hint) => (
@@ -194,15 +218,13 @@ export function ProjectsDialogs(props: ProjectsDialogsProps) {
                   }
                 />
               ))}
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {t("projects.new.hintCreator", { actor: actorName })}
               </p>
             </div>
-          </div>
+          </DialogPanel>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOpen(false)}>
-              {t("common.cancel")}
-            </Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button
               onClick={createProject}
               disabled={!newForm.title || !newForm.origin || !newForm.goal}
@@ -210,165 +232,183 @@ export function ProjectsDialogs(props: ProjectsDialogsProps) {
               {t("common.create")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </DialogPopup>
       </Dialog>
 
       <Dialog open={!!rename} onOpenChange={(open) => !open && setRename(null)}>
-        <DialogContent>
+        <DialogPopup>
           <DialogHeader>
             <DialogTitle>{t("projects.rename.title")}</DialogTitle>
-            <DialogDescription>{rename ? `${rename.id} - ${rename.title}` : ""}</DialogDescription>
+            <DialogDescription>
+              {rename ? `${rename.id} - ${rename.title}` : ""}
+            </DialogDescription>
           </DialogHeader>
-          <Input
-            value={rename?.title ?? ""}
-            onChange={(event) =>
-              setRename((current) => (current ? { ...current, title: event.target.value } : current))
-            }
-          />
-          <p className="text-[11px] text-muted-foreground">{t("projects.rename.hint")}</p>
+          <DialogPanel>
+            <Field>
+              <Input
+                value={rename?.title ?? ""}
+                onChange={(event) =>
+                  setRename((current) =>
+                    current ? { ...current, title: event.target.value } : current,
+                  )
+                }
+              />
+              <FieldDescription>{t("projects.rename.hint")}</FieldDescription>
+            </Field>
+          </DialogPanel>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRename(null)}>
-              {t("common.cancel")}
-            </Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button onClick={renameProject} disabled={!rename?.title}>
               {t("common.save")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </DialogPopup>
       </Dialog>
 
       <Dialog open={!!reopen} onOpenChange={(open) => !open && setReopen(null)}>
-        <DialogContent>
+        <DialogPopup>
           <DialogHeader>
             <DialogTitle>{t("projects.reopen.title")}</DialogTitle>
-            <DialogDescription>{reopen ? `${reopen.id} - ${reopen.title}` : ""}</DialogDescription>
+            <DialogDescription>
+              {reopen ? `${reopen.id} - ${reopen.title}` : ""}
+            </DialogDescription>
           </DialogHeader>
-          <Textarea
-            value={reopenText}
-            onChange={(event) => setReopenText(event.target.value)}
-            placeholder={t("projects.reopen.placeholder")}
-            rows={3}
-          />
+          <DialogPanel>
+            <Textarea
+              value={reopenText}
+              onChange={(event) => setReopenText(event.target.value)}
+              placeholder={t("projects.reopen.placeholder")}
+              rows={3}
+            />
+          </DialogPanel>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setReopen(null)}>
-              {t("common.cancel")}
-            </Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button onClick={reopenProject} disabled={!reopenText}>
               {t("project.reopen")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </DialogPopup>
       </Dialog>
 
       <Dialog open={!!forking} onOpenChange={(open) => !open && setForking(null)}>
-        <DialogContent>
+        <DialogPopup>
           <DialogHeader>
             <DialogTitle>{t("projects.fork.title")}</DialogTitle>
             <DialogDescription>
-              {t("projects.fork.description", { label: forking ? `${forking.id} - ${forking.title}` : "" })}
+              {t("projects.fork.description", {
+                label: forking ? `${forking.id} - ${forking.title}` : "",
+              })}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2">
-            <Label htmlFor="fork-title">{t("projects.fork.titleLabel")}</Label>
-            <Input id="fork-title" value={forkTitle} onChange={(event) => setForkTitle(event.target.value)} />
-          </div>
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label>{t("projects.fork.hintsLabel")}</Label>
-              <div className="flex items-center gap-3 text-xs">
-                <button
-                  type="button"
-                  className="text-muted-foreground underline-offset-2 hover:underline disabled:opacity-50"
-                  disabled={forkHintsLoading || forkSelected.size === forkHints.length}
-                  onClick={() => setForkSelected(new Set(forkHints.map((hint) => hint.id)))}
-                >
-                  {t("projects.fork.selectAll")}
-                </button>
-                <button
-                  type="button"
-                  className="text-muted-foreground underline-offset-2 hover:underline disabled:opacity-50"
-                  disabled={forkHintsLoading || forkSelected.size === 0}
-                  onClick={() => setForkSelected(new Set())}
-                >
-                  {t("projects.fork.selectNone")}
-                </button>
-              </div>
-            </div>
-            <div className="max-h-56 overflow-y-auto rounded-md border p-1.5">
-              {forkHintsLoading ? (
-                <p className="p-2 text-xs text-muted-foreground">{t("common.loading")}</p>
-              ) : forkHintsFailed ? (
-                <p className="p-2 text-xs text-muted-foreground">{t("projects.fork.hintsFailed")}</p>
-              ) : forkHints.length === 0 ? (
-                <p className="p-2 text-xs text-muted-foreground">{t("projects.fork.noHints")}</p>
-              ) : (
-                forkHints.map((hint) => (
-                  <label
-                    key={hint.id}
-                    className="flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-xs hover:bg-muted"
+          <DialogPanel className="grid gap-4">
+            <Field>
+              <FieldLabel htmlFor="fork-title">{t("projects.fork.titleLabel")}</FieldLabel>
+              <Input
+                id="fork-title"
+                value={forkTitle}
+                onChange={(event) => setForkTitle(event.target.value)}
+              />
+            </Field>
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label>{t("projects.fork.hintsLabel")}</Label>
+                <div className="flex items-center gap-2 text-xs">
+                  <Button
+                    variant="link"
+                    size="xs"
+                    disabled={forkHintsLoading || forkSelected.size === forkHints.length}
+                    onClick={() => setForkSelected(new Set(forkHints.map((hint) => hint.id)))}
                   >
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 size-3.5 shrink-0 accent-primary"
-                      checked={forkSelected.has(hint.id)}
-                      onChange={() => toggleForkHint(hint.id)}
-                    />
-                    <span className="grid gap-0.5">
-                      <span>{hint.content}</span>
-                      <span className="text-muted-foreground">
-                        {hint.creator} · {hint.created_at}
+                    {t("projects.fork.selectAll")}
+                  </Button>
+                  <Button
+                    variant="link"
+                    size="xs"
+                    disabled={forkHintsLoading || forkSelected.size === 0}
+                    onClick={() => setForkSelected(new Set())}
+                  >
+                    {t("projects.fork.selectNone")}
+                  </Button>
+                </div>
+              </div>
+              <div className="max-h-56 overflow-y-auto rounded-lg border bg-muted/32 p-1.5">
+                {forkHintsLoading ? (
+                  <p className="p-2 text-xs text-muted-foreground">{t("common.loading")}</p>
+                ) : forkHintsFailed ? (
+                  <p className="p-2 text-xs text-muted-foreground">
+                    {t("projects.fork.hintsFailed")}
+                  </p>
+                ) : forkHints.length === 0 ? (
+                  <p className="p-2 text-xs text-muted-foreground">{t("projects.fork.noHints")}</p>
+                ) : (
+                  forkHints.map((hint) => (
+                    <label
+                      key={hint.id}
+                      className="flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-accent"
+                    >
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={forkSelected.has(hint.id)}
+                        onCheckedChange={() => toggleForkHint(hint.id)}
+                      />
+                      <span className="grid gap-0.5">
+                        <span className="text-foreground">{hint.content}</span>
+                        <span className="text-muted-foreground">
+                          {hint.creator} · {hint.created_at}
+                        </span>
                       </span>
-                    </span>
-                  </label>
-                ))
-              )}
+                    </label>
+                  ))
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {forkHintsFailed
+                  ? t("projects.fork.hintsAllCopied")
+                  : t("projects.fork.hintsSelected", {
+                      selected: forkSelected.size,
+                      total: forkHints.length,
+                    })}
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {forkHintsFailed
-                ? t("projects.fork.hintsAllCopied")
-                : t("projects.fork.hintsSelected", { selected: forkSelected.size, total: forkHints.length })}
-            </p>
-          </div>
+          </DialogPanel>
           <DialogFooter>
             <Button variant="outline" onClick={() => setForking(null)} disabled={forkingBusy}>
               {t("common.cancel")}
             </Button>
-            <Button onClick={forkProject} disabled={forkingBusy || forkHintsLoading}>
+            <Button
+              onClick={forkProject}
+              disabled={forkingBusy || forkHintsLoading}
+              loading={forkingBusy}
+            >
               <GitFork className="size-4" />
               {forkingBusy ? t("common.saving") : t("projects.fork.confirm")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </DialogPopup>
       </Dialog>
 
-      <Dialog open={!!removal} onOpenChange={(open) => !open && setRemoval(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("projects.removal.title")}</DialogTitle>
-            <DialogDescription>
-              {t("projects.removal.body", { label: removal ? `${removal.id} - ${removal.title}` : "" })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRemoval(null)} disabled={deleting}>
-              {t("common.cancel")}
-            </Button>
-            <Button variant="destructive" onClick={deleteProject} disabled={deleting}>
-              {deleting ? t("common.deleting") : t("common.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!removal}
+        title={t("projects.removal.title")}
+        description={t("projects.removal.body", {
+          label: removal ? `${removal.id} - ${removal.title}` : "",
+        })}
+        onCancel={() => setRemoval(null)}
+        onConfirm={deleteProject}
+        confirmDisabled={deleting}
+      />
 
       <Dialog open={!!snapshot} onOpenChange={(open) => !open && setSnapshot(null)}>
-        <DialogContent className="max-w-4xl">
+        <DialogPopup className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{t("projects.snapshotTitle")}</DialogTitle>
             <DialogDescription>{snapshot?.title}</DialogDescription>
           </DialogHeader>
-          <div className={cn("max-h-[60vh] overflow-auto rounded-lg border bg-muted/40 p-3")}>
-            <pre className="text-xs leading-5">{snapshot?.text}</pre>
-          </div>
+          <DialogPanel>
+            <div className="max-h-[60vh] overflow-auto rounded-xl border bg-code p-3.5 text-code-foreground">
+              <pre className="font-mono text-xs leading-5">{snapshot?.text}</pre>
+            </div>
+          </DialogPanel>
           <DialogFooter>
             <Button
               variant="outline"
@@ -382,15 +422,16 @@ export function ProjectsDialogs(props: ProjectsDialogsProps) {
               onClick={() =>
                 snapshot &&
                 copyText(snapshot.text)
-                  .then(() => toast.show(t("common.copied")))
+                  .then(() => toast.show(t("common.copied"), "success"))
                   .catch(() => toast.show(t("common.copyFailed"), "error"))
               }
             >
+              <Copy className="size-4" />
               {t("common.copy")}
             </Button>
-            <Button onClick={() => setSnapshot(null)}>{t("common.close")}</Button>
+            <DialogClose render={<Button />}>{t("common.close")}</DialogClose>
           </DialogFooter>
-        </DialogContent>
+        </DialogPopup>
       </Dialog>
     </>
   );

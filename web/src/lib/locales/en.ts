@@ -525,6 +525,12 @@ const en = {
     zh_CN: "简体中文",
     ja: "日本語",
   },
+  theme: {
+    label: "Appearance",
+    system: "System",
+    light: "Light",
+    dark: "Dark",
+  },
 };
 
 export default en;

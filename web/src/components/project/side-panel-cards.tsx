@@ -1,11 +1,20 @@
 import { useTranslation } from "react-i18next";
+import { MousePointerClick } from "lucide-react";
 
-import type { UseFormatResult } from "@/lib/format";
-import type { Intent, ProjectDetail } from "@/lib/types";
-import { isBootstrapIntent } from "@/lib/timeline";
+import type { SidePanelGroup } from "@/components/project/project-side-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { SidePanelGroup } from "@/components/project/project-side-panel";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Separator } from "@/components/ui/separator";
+import type { UseFormatResult } from "@/lib/format";
+import { isBootstrapIntent } from "@/lib/timeline";
+import type { Intent, ProjectDetail } from "@/lib/types";
 
 export function GroupCard({
   group,
@@ -18,54 +27,66 @@ export function GroupCard({
 }) {
   const { t } = useTranslation();
   return (
-                <article className="rounded-xl border border-amber-200 bg-amber-50/40 p-3">
-                  <div className="mb-2 flex items-center gap-2">
-                    <span className="rounded bg-amber-100 px-1.5 py-0.5 font-mono text-[10px] text-amber-700">
-                      {t("project.group.title")}
-                    </span>
-                    <Badge variant="secondary">
-                      {t("project.group.count", { count: group.intents.length })}
-                    </Badge>
-                  </div>
-                  <p className="truncate font-mono text-xs text-muted-foreground">{group.worker}</p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">{t("project.group.hint")}</p>
-                  <ul className="mt-2 space-y-1">
-                    {[...group.intents]
-                      .sort((a, b) => b.created_at.localeCompare(a.created_at))
-                      .map((member) => (
-                        <li key={member.id}>
-                          <button
-                            type="button"
-                            onClick={() => onSelectIntent(member.id)}
-                            className="w-full rounded-lg border bg-background px-2 py-1.5 text-left hover:bg-muted/50"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-[10px]">{member.id}</span>
-                              <Badge variant="secondary">
-                                {member.to
-                                  ? t("project.group.concluded")
-                                  : member.worker
-                                    ? t("project.group.running")
-                                    : t("project.group.unclaimed")}
-                              </Badge>
-                            </div>
-                            <p className="mt-0.5 line-clamp-2 text-xs break-words">{member.description}</p>
-                            <p className="text-[10px] text-muted-foreground">{format.time(member.created_at)}</p>
-                          </button>
-                        </li>
-                      ))}
-                  </ul>
-                </article>
+    <article className="rounded-xl border border-warning/25 bg-warning/6 p-3 dark:bg-warning/10">
+      <div className="mb-2 flex items-center gap-2">
+        <Badge variant="warning" size="sm" className="font-mono">
+          {t("project.group.title")}
+        </Badge>
+        <Badge variant="secondary" size="sm">
+          {t("project.group.count", { count: group.intents.length })}
+        </Badge>
+      </div>
+      <p className="truncate font-mono text-xs text-foreground">{group.worker}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{t("project.group.hint")}</p>
+      <ul className="mt-2.5 space-y-1.5">
+        {[...group.intents]
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))
+          .map((member) => (
+            <li key={member.id}>
+              <button
+                type="button"
+                onClick={() => onSelectIntent(member.id)}
+                className="w-full rounded-lg border bg-card px-2.5 py-2 text-left shadow-xs/5 transition-colors hover:bg-accent/50"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[11px] text-muted-foreground">{member.id}</span>
+                  <Badge
+                    variant={member.to ? "success" : member.worker ? "warning" : "secondary"}
+                    size="sm"
+                  >
+                    {member.to
+                      ? t("project.group.concluded")
+                      : member.worker
+                        ? t("project.group.running")
+                        : t("project.group.unclaimed")}
+                  </Badge>
+                </div>
+                <p className="mt-1 line-clamp-2 text-xs break-words text-foreground">
+                  {member.description}
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {format.time(member.created_at)}
+                </p>
+              </button>
+            </li>
+          ))}
+      </ul>
+    </article>
   );
 }
 
 export function EmptySelection() {
   const { t } = useTranslation();
   return (
-    <div className="rounded-xl border border-dashed px-4 py-10 text-center">
-      <p className="text-sm text-muted-foreground">{t("project.empty.selection")}</p>
-      <p className="text-xs text-muted-foreground/70">{t("project.empty.multiSelect")}</p>
-    </div>
+    <Empty className="rounded-xl border border-dashed px-4 py-10">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <MousePointerClick />
+        </EmptyMedia>
+        <EmptyTitle className="text-sm">{t("project.empty.selection")}</EmptyTitle>
+        <EmptyDescription className="text-xs">{t("project.empty.multiSelect")}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   );
 }
 
@@ -80,23 +101,27 @@ export function MultiFactList({
 }) {
   const { t } = useTranslation();
   return (
-                <div className="space-y-2">
-                  {selectedFacts.map((factId) => {
-                    const fact = project.facts.find((item) => item.id === factId);
-                    if (!fact) return null;
-                    return (
-                      <article key={factId} className="rounded-xl border p-3">
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">{fact.id}</span>
-                          <Button variant="link" size="sm" onClick={() => onToggleFact(fact.id)}>
-                            {t("common.remove")}
-                          </Button>
-                        </div>
-                        <p className="text-sm break-words whitespace-pre-wrap">{fact.description}</p>
-                      </article>
-                    );
-                  })}
-                </div>
+    <div className="space-y-2">
+      {selectedFacts.map((factId) => {
+        const fact = project.facts.find((item) => item.id === factId);
+        if (!fact) return null;
+        return (
+          <article key={factId} className="rounded-xl border bg-card p-3 shadow-xs/5">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <Badge variant="secondary" size="sm" className="font-mono">
+                {fact.id}
+              </Badge>
+              <Button variant="link" size="xs" onClick={() => onToggleFact(fact.id)}>
+                {t("common.remove")}
+              </Button>
+            </div>
+            <p className="text-sm break-words whitespace-pre-wrap text-foreground">
+              {fact.description}
+            </p>
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -109,60 +134,69 @@ export function FactCard({
 }) {
   const { t } = useTranslation();
   return (
-                <article className="rounded-xl border p-3">
-                  <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">
-                    {fact.id}
-                  </span>
-                  <p className="mt-2 text-sm break-words whitespace-pre-wrap">
-                    {fact.description}
-                  </p>
-                  {producingIntent && (
-                    <dl className="mt-3 grid grid-cols-2 gap-1 border-t pt-3 text-xs">
-                      <dt className="text-muted-foreground">{t("project.fact.producedBy")}</dt>
-                      <dd className="text-right font-mono">{producingIntent.id}</dd>
-                      <dt className="text-muted-foreground">{t("project.fact.from")}</dt>
-                      <dd className="text-right font-mono">{producingIntent.from.join(", ")}</dd>
-                      <dt className="text-muted-foreground">{t("project.fact.worker")}</dt>
-                      <dd className="text-right">{producingIntent.worker ?? "—"}</dd>
-                    </dl>
-                  )}
-                </article>
+    <article className="rounded-xl border bg-card p-3.5 shadow-xs/5">
+      <Badge variant="secondary" size="sm" className="font-mono">
+        {fact.id}
+      </Badge>
+      <p className="mt-2.5 text-sm break-words whitespace-pre-wrap text-foreground">
+        {fact.description}
+      </p>
+      {producingIntent && (
+        <>
+          <Separator className="my-3" />
+          <dl className="grid grid-cols-2 gap-y-1.5 text-xs">
+            <dt className="text-muted-foreground">{t("project.fact.producedBy")}</dt>
+            <dd className="text-right font-mono text-foreground">{producingIntent.id}</dd>
+            <dt className="text-muted-foreground">{t("project.fact.from")}</dt>
+            <dd className="text-right font-mono text-foreground">
+              {producingIntent.from.join(", ")}
+            </dd>
+            <dt className="text-muted-foreground">{t("project.fact.worker")}</dt>
+            <dd className="text-right text-foreground">{producingIntent.worker ?? "—"}</dd>
+          </dl>
+        </>
+      )}
+    </article>
   );
 }
 
 export function IntentCard({ intent, format }: { intent: Intent; format: UseFormatResult }) {
   const { t } = useTranslation();
+  const statusVariant = intent.to ? "success" : intent.worker ? "warning" : "secondary";
   return (
-                <article className="rounded-xl border p-3">
-                  <div className="mb-2 flex items-center gap-2">
-                    <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">
-                      {intent.id}
-                    </span>
-                    <Badge variant="secondary">
-                      {intent.to
-                        ? t("project.intent.concluded")
-                        : isBootstrapIntent(intent)
-                          ? intent.worker
-                            ? t("project.intent.bootstrapRunning")
-                            : t("project.intent.bootstrapPending")
-                          : intent.worker
-                            ? t("project.intent.inProgress")
-                            : t("project.intent.unclaimed")}
-                    </Badge>
-                  </div>
-                  <p className="text-sm break-words whitespace-pre-wrap">
-                    {intent.description}
-                  </p>
-                  <dl className="mt-3 grid grid-cols-2 gap-1 border-t pt-3 text-xs">
-                    <dt className="text-muted-foreground">{t("project.intent.from")}</dt>
-                    <dd className="text-right font-mono">{intent.from.join(", ")}</dd>
-                    <dt className="text-muted-foreground">{t("project.intent.to")}</dt>
-                    <dd className="text-right font-mono">{intent.to ?? "—"}</dd>
-                    <dt className="text-muted-foreground">{t("project.intent.worker")}</dt>
-                    <dd className="text-right">{intent.worker ?? "—"}</dd>
-                    <dt className="text-muted-foreground">{t("project.intent.created")}</dt>
-                    <dd className="text-right">{format.time(intent.created_at)}</dd>
-                  </dl>
-                </article>
+    <article className="rounded-xl border bg-card p-3.5 shadow-xs/5">
+      <div className="mb-2.5 flex items-center gap-2">
+        <Badge variant="secondary" size="sm" className="font-mono">
+          {intent.id}
+        </Badge>
+        <Badge variant={statusVariant} size="sm">
+          {intent.to
+            ? t("project.intent.concluded")
+            : isBootstrapIntent(intent)
+              ? intent.worker
+                ? t("project.intent.bootstrapRunning")
+                : t("project.intent.bootstrapPending")
+              : intent.worker
+                ? t("project.intent.inProgress")
+                : t("project.intent.unclaimed")}
+        </Badge>
+      </div>
+      <p className="text-sm break-words whitespace-pre-wrap text-foreground">
+        {intent.description}
+      </p>
+      <Separator className="my-3" />
+      <dl className="grid grid-cols-2 gap-y-1.5 text-xs">
+        <dt className="text-muted-foreground">{t("project.intent.from")}</dt>
+        <dd className="text-right font-mono text-foreground">{intent.from.join(", ")}</dd>
+        <dt className="text-muted-foreground">{t("project.intent.to")}</dt>
+        <dd className="text-right font-mono text-foreground">{intent.to ?? "—"}</dd>
+        <dt className="text-muted-foreground">{t("project.intent.worker")}</dt>
+        <dd className="text-right text-foreground">{intent.worker ?? "—"}</dd>
+        <dt className="text-muted-foreground">{t("project.intent.created")}</dt>
+        <dd className="text-right tabular-nums text-foreground">
+          {format.time(intent.created_at)}
+        </dd>
+      </dl>
+    </article>
   );
 }
