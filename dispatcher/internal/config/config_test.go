@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -275,7 +274,7 @@ func TestShippedLocalExampleConfigIsValid(t *testing.T) {
 	}
 }
 
-func TestMCPBlockReachesWorkerEnv(t *testing.T) {
+func TestMCPBlockIsNormalizedForTheServer(t *testing.T) {
 	document := baseYAML + `
 mcp:
   servers:
@@ -288,17 +287,15 @@ mcp:
       url: https://mcp.test/sse
 `
 	config := mustParse(t, document)
-	var payload struct {
-		Servers map[string]map[string]any `json:"mcpServers"`
+	if config.MCP.Servers["fs"].Type != "stdio" || config.MCP.Servers["fs"].Command != "mcp-fs" {
+		t.Fatalf("stdio server = %v", config.MCP.Servers["fs"])
 	}
-	if err := json.Unmarshal([]byte(config.Workers[0].Env["MCP_CONFIG"]), &payload); err != nil {
-		t.Fatalf("mcp env: %v", err)
+	if config.MCP.Servers["remote"].Type != "http" || config.MCP.Servers["remote"].URL != "https://mcp.test/sse" {
+		t.Fatalf("http server = %v", config.MCP.Servers["remote"])
 	}
-	if payload.Servers["fs"]["command"] != "mcp-fs" || payload.Servers["fs"]["type"] != "stdio" {
-		t.Fatalf("stdio server = %v", payload.Servers["fs"])
-	}
-	if payload.Servers["remote"]["url"] != "https://mcp.test/sse" || payload.Servers["remote"]["type"] != "http" {
-		t.Fatalf("http server = %v", payload.Servers["remote"])
+	// The dispatcher writes MCP_CONFIG at sync time, not at parse time.
+	if _, exists := config.Workers[0].Env["MCP_CONFIG"]; exists {
+		t.Fatalf("env = %v", config.Workers[0].Env)
 	}
 }
 

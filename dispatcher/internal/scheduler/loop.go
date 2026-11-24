@@ -97,6 +97,7 @@ type Loop struct {
 	workerRejectedUntil  map[string]float64
 	globalLoad           protocol.LoadSnapshot
 	serverSettings       protocol.Settings
+	mcpConfig            string
 	logState             map[string]string
 	cleanupPending       map[string]bool
 	inactiveCleanupDone  map[string]string
@@ -179,6 +180,9 @@ func (loop *Loop) Close() {
 func (loop *Loop) Run(once bool) error {
 	defer loop.Close()
 	defer close(loop.done)
+	if err := loop.syncMCP(true); err != nil {
+		return err
+	}
 	if err := loop.syncWorkers(true); err != nil {
 		return err
 	}
@@ -188,6 +192,9 @@ func (loop *Loop) Run(once bool) error {
 	for {
 		if loop.stopped() {
 			return nil
+		}
+		if err := loop.syncMCP(false); err != nil {
+			log.Warnf("failed to reload mcp servers error=%s", err)
 		}
 		if err := loop.syncWorkers(false); err != nil {
 			log.Warnf("failed to reload worker models error=%s", err)
@@ -380,6 +387,73 @@ func workerSignature(workers []config.WorkerConfig) string {
 	return builder.String()
 }
 
+// syncMCP caches the MCP_CONFIG payload for the agent workers. The dispatch.yaml
+// block only seeds an empty table; after that the server list wins.
+func (loop *Loop) syncMCP(seed bool) error {
+	servers, err := loop.client.ListMCP()
+	if err != nil {
+		return err
+	}
+	if seed && len(servers) == 0 && loop.Config.MCP != nil && len(loop.Config.MCP.Servers) > 0 {
+		seeded, seedErr := loop.client.ReplaceMCP(loop.Config.MCP.Servers)
+		if seedErr != nil {
+			return seedErr
+		}
+		servers = seeded
+		log.Infof("seeded %d mcp server(s) from %s", len(servers), loop.configPath)
+	}
+	payload := ""
+	if len(servers) > 0 {
+		encoded, err := encodeMCPConfig(servers)
+		if err != nil {
+			return err
+		}
+		payload = encoded
+	}
+	loop.mu.Lock()
+	changed := loop.mcpConfig != payload
+	loop.mcpConfig = payload
+	loop.mu.Unlock()
+	if changed {
+		log.Infof("mcp servers reloaded count=%d", len(servers))
+	}
+	return nil
+}
+
+func (loop *Loop) mcpSnapshot() string {
+	loop.mu.Lock()
+	defer loop.mu.Unlock()
+	return loop.mcpConfig
+}
+
+func encodeMCPConfig(servers []protocol.MCPServer) (string, error) {
+	entries := make(map[string]map[string]any, len(servers))
+	for _, server := range servers {
+		entry := map[string]any{"type": server.Type}
+		if server.Command != "" {
+			entry["command"] = server.Command
+		}
+		if len(server.Args) > 0 {
+			entry["args"] = server.Args
+		}
+		if len(server.Env) > 0 {
+			entry["env"] = server.Env
+		}
+		if server.URL != "" {
+			entry["url"] = server.URL
+		}
+		if len(server.Headers) > 0 {
+			entry["headers"] = server.Headers
+		}
+		entries[server.Name] = entry
+	}
+	payload, err := json.Marshal(map[string]any{"mcpServers": entries})
+	if err != nil {
+		return "", fmt.Errorf("mcp config: %w", err)
+	}
+	return string(payload), nil
+}
+
 func (loop *Loop) syncWorkers(seed bool) error {
 	previous := workerSignature(loop.Config.Workers)
 	models, err := loop.client.ListModels()
@@ -415,6 +489,11 @@ func (loop *Loop) syncWorkers(seed bool) error {
 			merged[key] = value
 		}
 		worker.Env = merged
+		if _, exists := worker.Env["MCP_CONFIG"]; !exists {
+			if payload := loop.mcpSnapshot(); payload != "" {
+				worker.Env["MCP_CONFIG"] = payload
+			}
+		}
 		if loop.Config.Runtime.Execution == config.ExecutionContainer {
 			var missing []string
 			for _, key := range config.WorkerEnvKeys[worker.Type] {

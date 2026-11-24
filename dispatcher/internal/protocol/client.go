@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -115,6 +116,17 @@ type WorkerModel struct {
 	Used int `json:"used"`
 }
 
+// MCPServer is one MCP server row.
+type MCPServer struct {
+	Name    string            `json:"name"`
+	Type    string            `json:"type"`
+	Command string            `json:"command"`
+	Args    []string          `json:"args"`
+	Env     map[string]string `json:"env"`
+	URL     string            `json:"url"`
+	Headers map[string]string `json:"headers"`
+}
+
 // Client talks to one Cairn server.
 type Client struct {
 	baseURL    string
@@ -199,6 +211,38 @@ func (client *Client) ReplaceModels(models []config.WorkerConfig) ([]WorkerModel
 	}
 	var stored []WorkerModel
 	err := client.doJSON(http.MethodPut, "/models", map[string]any{"models": payload}, &stored)
+	return stored, err
+}
+
+// ListMCP returns the MCP servers stored on the server.
+func (client *Client) ListMCP() ([]MCPServer, error) {
+	var servers []MCPServer
+	err := client.getJSON("/mcp", &servers)
+	return servers, err
+}
+
+// ReplaceMCP writes an MCP snapshot built from dispatch.yaml and returns the stored rows.
+func (client *Client) ReplaceMCP(servers map[string]config.MCPServer) ([]MCPServer, error) {
+	names := make([]string, 0, len(servers))
+	for name := range servers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	payload := make([]map[string]any, 0, len(names))
+	for _, name := range names {
+		server := servers[name]
+		payload = append(payload, map[string]any{
+			"name":    name,
+			"type":    server.Type,
+			"command": server.Command,
+			"args":    server.Args,
+			"env":     server.Env,
+			"url":     server.URL,
+			"headers": server.Headers,
+		})
+	}
+	var stored []MCPServer
+	err := client.doJSON(http.MethodPut, "/mcp", map[string]any{"servers": payload}, &stored)
 	return stored, err
 }
 

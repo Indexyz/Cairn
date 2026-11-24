@@ -94,6 +94,17 @@ var schema = []string{
 		name TEXT PRIMARY KEY,
 		value INTEGER NOT NULL DEFAULT 0
 	)`,
+	`CREATE TABLE IF NOT EXISTS mcp_servers (
+		name TEXT PRIMARY KEY,
+		type TEXT NOT NULL,
+		command TEXT NOT NULL DEFAULT '',
+		args TEXT NOT NULL DEFAULT '[]',
+		env TEXT NOT NULL DEFAULT '{}',
+		url TEXT NOT NULL DEFAULT '',
+		headers TEXT NOT NULL DEFAULT '{}',
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	)`,
 	`INSERT OR IGNORE INTO counters (name, value) VALUES ('project', 0)`,
 	`INSERT OR IGNORE INTO counters (name, value) VALUES ('notification_channel', 0)`,
 	`INSERT OR IGNORE INTO counters (name, value) VALUES ('schedule', 0)`,

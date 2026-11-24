@@ -228,6 +228,22 @@ env           # 环境变量对象，字符串键值；容器模式下必须包�
 
 响应中的 `used` 由未过期的租约推导（只读，不落库）；新建、更新、删除的请求体可以不带该字段。
 
+### MCP server
+
+可下发给 worker 的 MCP 服务器条目。与 Model 一样，数据库是唯一权威来源，`dispatch.yaml` 里的 `mcp.servers` 只在数据库为空时做一次性 seed；dispatcher 每轮调度前都会重新拉取，保存后下一个任务生效。worker 自己的 `env.MCP_CONFIG` 优先于这张表。
+
+```
+name          # 唯一名称，匹配 ^[A-Za-z0-9][A-Za-z0-9_.-]*$
+类型          # "stdio" | "http" | "sse"，缺省按 command / url 推断
+command       # stdio 的可执行文件，与 url 二选一
+args          # stdio 参数数组
+env           # stdio 服务器进程的环境变量对象
+url           # http / sse 地址，必须是 http(s)，与 command 二选一
+headers       # http / sse 请求头对象
+```
+
+保存后的内容会以 Claude 兼容的 `{"mcpServers": …}` JSON 注入每个 worker 的 `MCP_CONFIG`。
+
 ---
 
 ## 接口列表
@@ -395,6 +411,36 @@ Body：
 #### DELETE /api/models/{name}
 
 删除模型。模型不存在返回 `404`。
+
+---
+
+### MCP
+
+#### GET /api/mcp
+
+返回全部 MCP 服务器，按 `name` 升序。
+
+#### POST /api/mcp
+
+新建，返回 `201`。重名返回 `409`，字段不合法返回 `422`。
+
+Body：
+
+```json
+{ "name": "fs", "type": "stdio", "command": "npx", "args": ["-y", "server"], "env": {}, "url": "", "headers": {} }
+```
+
+#### PUT /api/mcp
+
+整体替换，供 dispatcher seed 使用。Body 为 `{"servers": [...]}`；缺 `servers` 或名单内重名返回 `422`，空数组清空整表。
+
+#### PUT /api/mcp/{name}
+
+更新，允许改名。不存在返回 `404`，改成已存在的名字返回 `409`。
+
+#### DELETE /api/mcp/{name}
+
+删除。不存在返回 `404`。
 
 ---
 

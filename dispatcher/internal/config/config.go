@@ -325,7 +325,8 @@ func (config *DispatchConfig) mergeCommonEnv() {
 	}
 }
 
-// mergeMCP normalizes the MCP block and hands it to the agents as MCP_CONFIG.
+// mergeMCP normalizes and validates the MCP block. The dispatcher pushes it to the
+// server and only falls back to it as a seed, so workers get MCP_CONFIG at sync time.
 func (config *DispatchConfig) mergeMCP() error {
 	if config.MCP == nil || len(config.MCP.Servers) == 0 {
 		return nil
@@ -345,22 +346,6 @@ func (config *DispatchConfig) mergeMCP() error {
 			return fmt.Errorf("mcp.servers.%s type must be stdio, http or sse", name)
 		}
 		config.MCP.Servers[name] = server
-	}
-	payload, err := json.Marshal(map[string]any{"mcpServers": config.MCP.Servers})
-	if err != nil {
-		return fmt.Errorf("mcp config: %w", err)
-	}
-	encoded := string(payload)
-	for index := range config.Workers {
-		if _, exists := config.Workers[index].Env["MCP_CONFIG"]; exists {
-			continue
-		}
-		merged := map[string]string{}
-		for key, value := range config.Workers[index].Env {
-			merged[key] = value
-		}
-		merged["MCP_CONFIG"] = encoded
-		config.Workers[index].Env = merged
 	}
 	return nil
 }

@@ -925,6 +925,8 @@ codex exec resume "{session}" --dangerously-bypass-approvals-and-sandbox --model
 
 该 JSON 同时写入项目工作区的 `.mcp.json` 与 `.pi/mcp.json`（Pi 读后者，且需要项目信任）。Claude 额外用 `--mcp-config` 接收，Codex 翻译成 `-c mcp_servers.*` 覆盖项。worker 自己的 `env.MCP_CONFIG` 优先于全局 `mcp` 配置。
 
+与 `workers` 一样，数据库（`/api/mcp`）才是权威来源：这里的表只在数据库为空时被一次性 seed，之后每轮调度前重新拉取，改动下一轮生效。也可以在 Web 的 MCP 页面维护。
+
 ### `workers.*`
 
 Worker 模型列表的唯一权威来源是服务端数据库（`GET/PUT /api/models`），`dispatch.yaml` 里的 `workers` 只在数据库为空时被一次性 seed；之后每次调度轮开始前 dispatcher 都会重新拉取，变更下一轮生效。`common_env` 仍会对每个模型生效。并发上限、tick 间隔等运行参数仍来自配置文件，需要重启。

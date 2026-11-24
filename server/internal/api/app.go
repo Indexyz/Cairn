@@ -56,6 +56,12 @@ func (app *App) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/models/{name}", app.handle(app.deleteModel))
 	mux.HandleFunc("POST /api/models/{name}/test", app.handle(app.testModel))
 
+	mux.HandleFunc("GET /api/mcp", app.handle(app.listMCP))
+	mux.HandleFunc("POST /api/mcp", app.handle(app.createMCP))
+	mux.HandleFunc("PUT /api/mcp", app.handle(app.replaceMCP))
+	mux.HandleFunc("PUT /api/mcp/{name}", app.handle(app.updateMCP))
+	mux.HandleFunc("DELETE /api/mcp/{name}", app.handle(app.deleteMCP))
+
 	mux.HandleFunc("GET /api/notifications", app.handle(app.listChannels))
 	mux.HandleFunc("POST /api/notifications", app.handle(app.createChannel))
 	mux.HandleFunc("PUT /api/notifications/{channel}", app.handle(app.updateChannel))

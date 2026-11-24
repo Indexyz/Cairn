@@ -14,6 +14,20 @@ export interface WorkerModel {
   used?: number;
 }
 
+export type MCPTransport = "stdio" | "http" | "sse";
+
+export interface MCPServer {
+  name: string;
+  type: MCPTransport;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  url: string;
+  headers: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Fact {
   id: string;
   description: string;

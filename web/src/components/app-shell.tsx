@@ -8,6 +8,7 @@ import {
   ChevronsRight,
   LayoutDashboard,
   Languages,
+  Plug,
   Settings,
   Sparkles,
   UserRound,
@@ -35,6 +36,7 @@ export function AppShell() {
   const nav = [
     { to: "/", label: t("nav.projects"), icon: LayoutDashboard, end: true },
     { to: "/models", label: t("nav.models"), icon: Sparkles, end: false },
+    { to: "/mcp", label: t("nav.mcp"), icon: Plug, end: false },
     { to: "/notifications", label: t("nav.notifications"), icon: Bell, end: false },
     { to: "/schedules", label: t("nav.schedules"), icon: CalendarClock, end: false },
   ];

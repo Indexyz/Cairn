@@ -11,6 +11,8 @@ var openAPIPaths = map[string][]string{
 	"/api/load":                                          {"get"},
 	"/api/models/{name}":                                 {"put", "delete"},
 	"/api/models/{name}/test":                            {"post"},
+	"/api/mcp":                                           {"get", "post", "put"},
+	"/api/mcp/{name}":                                    {"put", "delete"},
 	"/api/notifications":                                 {"get", "post"},
 	"/api/notifications/{channel}":                       {"put", "delete"},
 	"/api/notifications/{channel}/test":                  {"post"},
